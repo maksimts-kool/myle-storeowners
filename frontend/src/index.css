@@ -1,0 +1,27 @@
+:root {
+  color-scheme: light dark;
+}
+
+body {
+  margin: 0;
+}
+
+/* Flat, calm background — no gradients or glows, just the surface colour. */
+.app-backdrop {
+  min-height: 100vh;
+  background: light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-8));
+}
+
+/* Store cards read as bordered tiles; hover firms up the stroke instead of floating. */
+.store-card {
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+.store-card:hover {
+  border-color: var(--mantine-color-grape-filled);
+  background-color: light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6));
+}
+
+/* Keep badge labels intact. The header wraps before a label is ellipsized. */
+.store-card__badge {
+  flex: 0 0 auto;
+}

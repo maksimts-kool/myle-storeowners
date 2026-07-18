@@ -1,0 +1,93 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum StoreStatus {
+  OPEN
+  CLOSED
+}
+
+enum VersionStatus {
+  PENDING
+  APPROVED
+  DECLINED
+  PUBLISHED
+  SUPERSEDED
+}
+
+model Store {
+  code             String         @id // "A1".."B3" or any admin-created code
+  floor            Int // 1 for A*, 2 for B*
+  displayName      String
+  status           StoreStatus    @default(OPEN)
+  ownerDiscordId   String?
+  ownerDisplayName String?
+  storeIdentifier  String? // e.g. "A3.001.240325" from the in-game sign
+  startingVersion  Int            @default(0) // last version represented by storeIdentifier; new uploads start after it
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  versions         StoreVersion[]
+  templates        TemplateFile[]
+
+  @@index([ownerDiscordId])
+}
+
+model StoreVersion {
+  id                  String        @id @default(cuid())
+  storeCode           String
+  store               Store         @relation(fields: [storeCode], references: [code], onDelete: Cascade)
+  versionNumber       Int // increments per store
+  status              VersionStatus @default(PENDING)
+  fileName            String // original filename
+  filePath            String // path under the store_files volume
+  fileSize            BigInt
+  checksum            String? // sha256 hex, computed while streaming
+  uploadedByDiscordId String
+  note                String? // owner's message
+  reviewNote          String? // admin's approve/decline note
+  reviewedByDiscordId String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  @@unique([storeCode, versionNumber])
+  @@index([storeCode, createdAt])
+}
+
+model TemplateFile {
+  id                  String   @id @default(cuid())
+  storeCode           String? // null = global template
+  store               Store?   @relation(fields: [storeCode], references: [code], onDelete: Cascade)
+  fileName            String
+  filePath            String
+  fileSize            BigInt
+  uploadedByDiscordId String
+  createdAt           DateTime @default(now())
+
+  @@index([storeCode, createdAt])
+}
+
+model NotificationPreference {
+  discordId           String   @id // the Discord user these preferences belong to
+  submissionReceived  Boolean  @default(true)
+  reviewNeeded        Boolean  @default(true)
+  submissionApproved  Boolean  @default(true)
+  submissionDeclined  Boolean  @default(true)
+  submissionPublished Boolean  @default(true)
+  updatedAt           DateTime @updatedAt
+}
+
+model NotificationLog {
+  id        String   @id @default(cuid())
+  discordId String
+  kind      String
+  storeCode String?
+  success   Boolean
+  detail    String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
