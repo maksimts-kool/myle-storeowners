@@ -1,0 +1,28 @@
+:80 {
+    # Preserve the existing generous upload limit for store files.
+    request_body {
+        max_size 300MB
+    }
+
+    @api path /api/*
+    handle @api {
+        reverse_proxy api:3000
+    }
+
+    @health path /health
+    handle @health {
+        reverse_proxy api:3000
+    }
+
+    @ready path /ready
+    handle @ready {
+        reverse_proxy api:3000
+    }
+
+    # BrowserRouter history-mode fallback.
+    handle {
+        root * /usr/share/caddy
+        try_files {path} /index.html
+        file_server
+    }
+}

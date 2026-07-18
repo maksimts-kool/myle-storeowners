@@ -31,7 +31,7 @@ Store status shown to the owner is derived from their latest submission:
 ```
 frontend/  React + Vite + Mantine SPA         -> served by its container, proxies /api -> api
 backend/   Fastify + Prisma + PostgreSQL API   -> Discord OAuth, stores, file upload/download
-compose.yml  web (nginx) + api + db (postgres) -> volumes: postgres_data, store_files
+compose.yml  web (Caddy) + api + db (postgres) -> volumes: postgres_data, store_files
 mylebot/   (separate repo) POST /internal/notify -> sends the Discord DMs
 ```
 
