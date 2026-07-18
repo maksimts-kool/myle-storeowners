@@ -22,7 +22,7 @@ const schema = z.object({
   // Signing secret for the session cookie (JWT). Use a long random value.
   SESSION_SECRET: z.string().min(16),
 
-  // Public origin of the site (used to redirect the browser after OAuth).
+  // Public base URL of the site (used to redirect the browser after OAuth).
   PUBLIC_BASE_URL: z.string().url(),
 
   // Where to reach the bot's internal portal endpoints, and their shared secret.
@@ -37,7 +37,7 @@ const schema = z.object({
   API_HOST: z.string().default("0.0.0.0"),
   API_PORT: z.coerce.number().int().min(1).max(65_535).default(3000),
   // "all" trusts any upstream — safe only when the API is reachable solely
-  // through a trusted reverse proxy (the nginx service in this deployment).
+  // through a trusted reverse proxy (the Caddy service in this deployment).
   TRUST_PROXY: z.enum(["false", "loopback", "all"]).default("loopback"),
   COOKIE_SECURE: z.enum(["auto", "true", "false"]).default("auto"),
 });
@@ -57,4 +57,19 @@ export function cookieIsSecure(config: Config): boolean {
   if (config.COOKIE_SECURE === "true") return true;
   if (config.COOKIE_SECURE === "false") return false;
   return config.PUBLIC_BASE_URL.startsWith("https://");
+}
+
+/**
+ * The browser-visible path where the portal is mounted. This can differ from
+ * the path received by the API when a reverse proxy strips a path prefix.
+ */
+export function publicBasePath(config: Config): string {
+  const pathname = new URL(config.PUBLIC_BASE_URL).pathname;
+  return pathname === "/" ? "/" : pathname.replace(/\/+$/, "");
+}
+
+/** Cookie path for the browser-visible OAuth login and callback routes. */
+export function authCookiePath(config: Config): string {
+  const basePath = publicBasePath(config);
+  return basePath === "/" ? "/api/auth" : `${basePath}/api/auth`;
 }

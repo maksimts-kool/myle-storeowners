@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import type { FastifyInstance } from "fastify";
-import { cookieIsSecure } from "../config.js";
+import { authCookiePath, cookieIsSecure, publicBasePath } from "../config.js";
 import type { RouteDeps } from "../deps.js";
 import { sessionCookieOptions, SESSION_COOKIE } from "../auth/plugin.js";
 import { buildAuthorizeUrl, exchangeCode, fetchDiscordUser } from "../auth/oauth.js";
@@ -20,7 +20,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: RouteDeps): void 
   app.get("/api/auth/login", async (_request, reply) => {
     const state = randomBytes(24).toString("hex");
     reply.setCookie(STATE_COOKIE, state, {
-      path: "/api/auth",
+      path: authCookiePath(config),
       httpOnly: true,
       sameSite: "lax",
       secure: cookieIsSecure(config),
@@ -38,7 +38,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: RouteDeps): void 
       if (request.query.error) return failure(request.query.error);
       const { code, state } = request.query;
       const expectedState = request.cookies[STATE_COOKIE];
-      reply.clearCookie(STATE_COOKIE, { path: "/api/auth" });
+      reply.clearCookie(STATE_COOKIE, { path: authCookiePath(config) });
 
       if (!code || !state || !expectedState || state !== expectedState) {
         return failure("invalid_state");
@@ -64,7 +64,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: RouteDeps): void 
   );
 
   app.post("/api/auth/logout", async (_request, reply) => {
-    reply.clearCookie(SESSION_COOKIE, { path: "/" });
+    reply.clearCookie(SESSION_COOKIE, { path: publicBasePath(config) });
     return { ok: true };
   });
 

@@ -2,7 +2,7 @@ import cookie from "@fastify/cookie";
 import jwt from "@fastify/jwt";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { Config } from "../config.js";
-import { cookieIsSecure } from "../config.js";
+import { cookieIsSecure, publicBasePath } from "../config.js";
 import { forbidden, unauthorized } from "../lib/errors.js";
 
 export const SESSION_COOKIE = "session";
@@ -52,7 +52,7 @@ export function sessionCookieOptions(config: Config): {
   maxAge: number;
 } {
   return {
-    path: "/",
+    path: publicBasePath(config),
     httpOnly: true,
     sameSite: "lax",
     secure: cookieIsSecure(config),
