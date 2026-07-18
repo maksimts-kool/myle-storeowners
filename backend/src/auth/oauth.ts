@@ -18,7 +18,6 @@ export function buildAuthorizeUrl(config: Config, state: string): string {
     response_type: "code",
     scope: "identify",
     state,
-    prompt: "none",
   });
   return `https://discord.com/oauth2/authorize?${params.toString()}`;
 }
