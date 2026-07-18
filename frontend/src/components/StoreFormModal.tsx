@@ -16,6 +16,11 @@ function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+function identifierPreview(code: string, version: number, date: string): string | null {
+  if (!code.trim() || !Number.isInteger(version) || version < 1 || version > 999 || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+  return `${code.trim().toUpperCase()}.${String(version).padStart(3, "0")}.${date.slice(2, 4)}${date.slice(5, 7)}${date.slice(8, 10)}`;
+}
+
 function initialState(store: StoreSummary | null): FormState {
   return {
     code: store?.code ?? "",
@@ -55,10 +60,12 @@ export function StoreFormModal({
 
   const codeError = !isEdit && form.code && !/^[A-Za-z0-9_-]{1,16}$/.test(form.code) ? "1–16 letters, digits, - or _" : null;
   const version = Number(form.initialVersion);
-  const versionError = !isEdit && (!/^\d+$/.test(form.initialVersion) || version < 1 || version > 999)
+  const needsIdentifier = !store?.storeIdentifier;
+  const identifierVersionError = needsIdentifier && (!/^\d+$/.test(form.initialVersion) || version < 1 || version > 999)
     ? "Use a number from 1 to 999"
     : null;
-  const creationDateError = !isEdit && !/^\d{4}-\d{2}-\d{2}$/.test(form.creationDate) ? "Choose a creation date" : null;
+  const creationDateError = needsIdentifier && !/^\d{4}-\d{2}-\d{2}$/.test(form.creationDate) ? "Choose a creation date" : null;
+  const preview = needsIdentifier ? identifierPreview(form.code, version, form.creationDate) : null;
   const ownerOptions = (verifiedMembers.data ?? []).map((member) => ({
     value: member.discordId,
     label: member.robloxUsername ? `${member.robloxUsername} · ${member.discordName}` : member.discordName,
@@ -76,7 +83,10 @@ export function StoreFormModal({
       ownerDiscordId: form.ownerDiscordId || null,
     };
     if (isEdit) {
-      update.mutate({ code: store.code, input: payload }, { onSuccess: onClose });
+      update.mutate({
+        code: store.code,
+        input: needsIdentifier ? { ...payload, initialVersion: version, creationDate: form.creationDate } : payload,
+      }, { onSuccess: onClose });
     } else {
       create.mutate({
         code: form.code.trim().toUpperCase(),
@@ -87,7 +97,7 @@ export function StoreFormModal({
     }
   }
 
-  const canSubmit = (isEdit || (form.code.trim() && !codeError && !versionError && !creationDateError)) && !pending;
+  const canSubmit = (isEdit || (form.code.trim() && !codeError)) && !identifierVersionError && !creationDateError && !pending;
 
   return (
     <Modal opened={opened} onClose={onClose} title={isEdit ? `Edit ${store.code}` : "Create a new store"} centered>
@@ -121,7 +131,7 @@ export function StoreFormModal({
           onChange={(value) => set("ownerDiscordId", value ?? "")}
         />
         {verifiedMembers.isError && <Text size="xs" c="red">Verified members could not be loaded. You can still remove the current assignment.</Text>}
-        {!isEdit && (
+        {needsIdentifier && (
           <>
             <TextInput
               label="Version"
@@ -129,7 +139,7 @@ export function StoreFormModal({
               min={1}
               max={999}
               value={form.initialVersion}
-              error={versionError}
+              error={identifierVersionError}
               description="Used to create the initial identifier, for example 001. The next upload continues from the following version."
               onChange={(e) => set("initialVersion", e.currentTarget.value)}
             />
@@ -141,6 +151,7 @@ export function StoreFormModal({
               description="Together with the code and version, this creates the store identifier automatically."
               onChange={(e) => set("creationDate", e.currentTarget.value)}
             />
+            {preview && <Text size="xs" c="dimmed">Identifier to create: {preview}</Text>}
           </>
         )}
 

@@ -55,6 +55,16 @@ const updateStoreSchema = z.object({
   displayName: z.string().trim().min(1).max(80).optional(),
   status: z.enum(["OPEN", "CLOSED"]).optional(),
   ownerDiscordId: discordId.optional(),
+  initialVersion: z.coerce.number().int().min(1).max(999, "Version must be between 1 and 999").optional(),
+  creationDate: creationDate.optional(),
+}).superRefine((input, context) => {
+  if ((input.initialVersion === undefined) !== (input.creationDate === undefined)) {
+    context.addIssue({
+      code: "custom",
+      message: "Version and creation date must be provided together",
+      path: [input.initialVersion === undefined ? "initialVersion" : "creationDate"],
+    });
+  }
 });
 
 const reviewSchema = z.object({ reviewNote: z.string().trim().max(1000).optional() });
@@ -130,6 +140,16 @@ export function registerAdminRoutes(app: FastifyInstance, deps: RouteDeps): void
     const input = updateStoreSchema.parse(request.body);
     const store = await db.store.findUnique({ where: { code: request.params.code } });
     if (!store) throw notFound("store_not_found");
+    const isCreatingIdentifier = input.initialVersion !== undefined;
+    if (isCreatingIdentifier && store.storeIdentifier) {
+      throw badRequest("store_identifier_exists", "This store already has an identifier");
+    }
+    if (isCreatingIdentifier) {
+      const existingVersion = await db.storeVersion.findFirst({ where: { storeCode: store.code }, select: { id: true } });
+      if (existingVersion) {
+        throw badRequest("store_identifier_locked", "Set the store identifier before the first file is uploaded");
+      }
+    }
     const owner = input.ownerDiscordId && input.ownerDiscordId !== null
       ? await robloxIdentity.verifiedMemberForDiscord(input.ownerDiscordId)
       : null;
@@ -147,6 +167,12 @@ export function registerAdminRoutes(app: FastifyInstance, deps: RouteDeps): void
         ...(input.status !== undefined ? { status: input.status } : {}),
         ...(input.ownerDiscordId !== undefined ? { ownerDiscordId: input.ownerDiscordId } : {}),
         ...(ownerDisplayName !== undefined ? { ownerDisplayName } : {}),
+        ...(isCreatingIdentifier
+          ? {
+              storeIdentifier: storeIdentifier(store.code, input.initialVersion!, input.creationDate!),
+              startingVersion: input.initialVersion!,
+            }
+          : {}),
       },
     });
     const updated = await loadStore(db, store.code);
