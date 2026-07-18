@@ -16,6 +16,9 @@ import "./index.css";
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
 });
+const routerBasename = import.meta.env.BASE_URL === "/"
+  ? undefined
+  : import.meta.env.BASE_URL.replace(/\/$/, "");
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
@@ -23,7 +26,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       <QueryClientProvider client={queryClient}>
         <Notifications position="top-right" />
         <ModalsProvider>
-          <BrowserRouter>
+          <BrowserRouter basename={routerBasename}>
             <App />
           </BrowserRouter>
         </ModalsProvider>

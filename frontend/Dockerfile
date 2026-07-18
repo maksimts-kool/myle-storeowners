@@ -1,5 +1,7 @@
 FROM node:24-bookworm-slim AS build
 WORKDIR /app
+ARG VITE_BASE_PATH=/
+ENV VITE_BASE_PATH=$VITE_BASE_PATH
 COPY package.json package-lock.json* ./
 RUN npm ci
 COPY tsconfig.json vite.config.ts index.html ./

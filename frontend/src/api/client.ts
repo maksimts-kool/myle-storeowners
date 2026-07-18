@@ -1,6 +1,9 @@
 import axios from "axios";
 
-export const http = axios.create({ baseURL: "/api", withCredentials: true });
+const appBasePath = import.meta.env.BASE_URL.replace(/\/$/, "");
+const apiBaseUrl = `${appBasePath}/api`;
+
+export const http = axios.create({ baseURL: apiBaseUrl, withCredentials: true });
 
 export type Role = "admin" | "owner" | "none";
 export type StoreStatus = "OPEN" | "CLOSED";
@@ -120,7 +123,7 @@ export interface NotificationPrefs {
 // --- Auth ---
 export const getMe = () => http.get<MeResponse>("/auth/me").then((r) => r.data);
 export const logout = () => http.post("/auth/logout").then((r) => r.data);
-export const loginUrl = "/api/auth/login";
+export const loginUrl = `${apiBaseUrl}/auth/login`;
 
 // --- Stores (owner + admin) ---
 export const getStores = () => http.get<{ stores: StoreSummary[] }>("/stores").then((r) => r.data.stores);
@@ -134,10 +137,10 @@ export function uploadVersion(code: string, file: File, note: string): Promise<v
 }
 
 // --- Download URLs (same-origin links carry the session cookie) ---
-export const versionDownloadUrl = (code: string, id: string) => `/api/stores/${code}/versions/${id}/download`;
-export const currentDownloadUrl = (code: string) => `/api/stores/${code}/current/download`;
+export const versionDownloadUrl = (code: string, id: string) => `${apiBaseUrl}/stores/${code}/versions/${id}/download`;
+export const currentDownloadUrl = (code: string) => `${apiBaseUrl}/stores/${code}/current/download`;
 export const templateDownloadUrl = (code: string, id?: string) =>
-  `/api/stores/${code}/template/download${id ? `?id=${id}` : ""}`;
+  `${apiBaseUrl}/stores/${code}/template/download${id ? `?id=${id}` : ""}`;
 
 // --- Admin ---
 export const getPending = () => http.get<{ pending: PendingItem[] }>("/admin/pending").then((r) => r.data.pending);

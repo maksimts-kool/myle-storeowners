@@ -1,6 +1,9 @@
 services:
   web:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        VITE_BASE_PATH: ${VITE_BASE_PATH:-/}
     restart: unless-stopped
     ports:
       - "${WEB_BIND_IP:-127.0.0.1}:${WEB_PORT:-8080}:80"
@@ -11,9 +14,6 @@ services:
   api:
     build: ./backend
     restart: unless-stopped
-    env_file:
-      - path: .env
-        required: false
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER:-storeowners}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-storeowners}?schema=public
@@ -21,9 +21,16 @@ services:
       API_PORT: 3000
       TRUST_PROXY: all
       STORE_FILES_DIR: /data/store-files
-      # DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_OAUTH_REDIRECT_URI,
-      # ADMIN_DISCORD_IDS, SESSION_SECRET, PUBLIC_BASE_URL, BOT_NOTIFY_URL,
-      # BOT_NOTIFY_SECRET, MAX_UPLOAD_BYTES and COOKIE_SECURE come from .env.
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:?set DISCORD_CLIENT_ID}
+      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:?set DISCORD_CLIENT_SECRET}
+      DISCORD_OAUTH_REDIRECT_URI: ${DISCORD_OAUTH_REDIRECT_URI:?set DISCORD_OAUTH_REDIRECT_URI}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL}
+      ADMIN_DISCORD_IDS: ${ADMIN_DISCORD_IDS:?set ADMIN_DISCORD_IDS}
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET}
+      BOT_NOTIFY_URL: ${BOT_NOTIFY_URL:-}
+      BOT_NOTIFY_SECRET: ${BOT_NOTIFY_SECRET:-}
+      MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-262144000}
+      COOKIE_SECURE: ${COOKIE_SECURE:-auto}
     volumes:
       - store_files:/data
     extra_hosts:

@@ -29,7 +29,7 @@ Store status shown to the owner is derived from their latest submission:
 ## Architecture
 
 ```
-frontend/  React + Vite + Mantine SPA         -> served by nginx, proxies /api -> api
+frontend/  React + Vite + Mantine SPA         -> served by its container, proxies /api -> api
 backend/   Fastify + Prisma + PostgreSQL API   -> Discord OAuth, stores, file upload/download
 compose.yml  web (nginx) + api + db (postgres) -> volumes: postgres_data, store_files
 mylebot/   (separate repo) POST /internal/notify -> sends the Discord DMs
@@ -95,6 +95,23 @@ uploaded versions continue counting up automatically.
 Compose binds the site to `127.0.0.1:8080` by default; put a TLS-terminating
 reverse proxy in front for public access and use `https://` URLs.
 
+### Caddy path deployment
+
+To serve the portal from `https://example.com/storeowners/`, set these stack
+environment values in Portainer before the first build:
+
+```
+WEB_BIND_IP=127.0.0.1
+WEB_PORT=8080
+VITE_BASE_PATH=/storeowners/
+PUBLIC_BASE_URL=https://example.com/storeowners
+DISCORD_OAUTH_REDIRECT_URI=https://example.com/storeowners/api/auth/callback
+```
+
+Then proxy `/storeowners/*` through Caddy to `127.0.0.1:8080` while stripping
+the `/storeowners` prefix. Add the exact OAuth callback URL in the Discord
+Developer Portal as a redirect before attempting to sign in.
+
 ## 4. Local development (without Docker)
 
 Backend:
@@ -125,6 +142,7 @@ and Docker share one configuration.
 | --- | --- |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | Compose PostgreSQL credentials. |
 | `WEB_BIND_IP` / `WEB_PORT` | Host bind for the site (default `127.0.0.1:8080`). |
+| `VITE_BASE_PATH` | Browser path prefix, `/` locally or `/storeowners/` behind Caddy. Set before building the frontend. |
 | `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` | Discord OAuth2 credentials. |
 | `DISCORD_OAUTH_REDIRECT_URI` | Must exactly match a redirect registered in Discord. |
 | `PUBLIC_BASE_URL` | Browser-facing origin; used for post-login redirects and cookie security. |
