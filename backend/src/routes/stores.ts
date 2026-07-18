@@ -13,7 +13,6 @@ import {
   loadStore,
   loadStoresForUser,
   nextVersionNumber,
-  refreshOwnerDisplayNames,
   toStoreDetail,
   toStoreSummary,
   toTemplateDto,
@@ -40,7 +39,6 @@ export function registerStoreRoutes(app: FastifyInstance, deps: RouteDeps): void
   app.get("/api/stores", { preHandler: app.authenticate }, async (request) => {
     const isAdmin = app.isAdmin(request.user.sub);
     const stores = await loadStoresForUser(db, request.user, isAdmin);
-    await refreshOwnerDisplayNames(db, deps.robloxIdentity, stores);
     return { stores: stores.map((store) => toStoreSummary(store, request.user, isAdmin)) };
   });
 
@@ -49,7 +47,6 @@ export function registerStoreRoutes(app: FastifyInstance, deps: RouteDeps): void
     { preHandler: app.authenticate },
     async (request) => {
       const { store, isAdmin } = await requireViewableStore(app, deps, request, request.params.code);
-      await refreshOwnerDisplayNames(db, deps.robloxIdentity, [store]);
       const detail = toStoreDetail(store, request.user, isAdmin);
       // When a store has no template of its own, offer the global templates for rebuilding.
       if (detail.templates.length === 0) {

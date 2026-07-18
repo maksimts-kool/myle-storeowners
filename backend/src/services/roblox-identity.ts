@@ -79,6 +79,11 @@ export class RobloxIdentityService {
 
   async verifiedMemberForDiscord(discordId: string): Promise<VerifiedMember | null> {
     const members = await this.verifiedMembers();
-    return members.find((member) => member.discordId === discordId) ?? null;
+    const member = members.find((candidate) => candidate.discordId === discordId);
+    if (!member) return null;
+    return {
+      ...member,
+      robloxUsername: member.robloxUsername ?? await this.usernameForDiscord(discordId),
+    };
   }
 }

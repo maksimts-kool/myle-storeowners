@@ -1,7 +1,6 @@
 import type { Store, StoreVersion, TemplateFile } from "@prisma/client";
 import type { prisma as database } from "../db.js";
 import type { SessionUser } from "../types.js";
-import type { RobloxIdentityService } from "./roblox-identity.js";
 
 type Db = typeof database;
 
@@ -67,24 +66,6 @@ export async function loadStoresForUser(db: Db, user: SessionUser, isAdmin: bool
     include: STORE_INCLUDE,
     orderBy: [{ floor: "asc" }, { code: "asc" }],
   });
-}
-
-/** Refresh stored owner names from the bot so the site always shows Roblox usernames. */
-export async function refreshOwnerDisplayNames(
-  db: Db,
-  identity: RobloxIdentityService,
-  stores: StoreWithFiles[],
-): Promise<void> {
-  const ids = [...new Set(stores.flatMap((store) => (store.ownerDiscordId ? [store.ownerDiscordId] : [])))];
-  const names = await Promise.all(ids.map(async (id) => [id, await identity.usernameForDiscord(id)] as const));
-  const byDiscordId = new Map(names);
-  await Promise.all(stores.map(async (store) => {
-    const username = store.ownerDiscordId ? byDiscordId.get(store.ownerDiscordId) : null;
-    const ownerDisplayName = username ?? null;
-    if (ownerDisplayName === store.ownerDisplayName) return;
-    store.ownerDisplayName = ownerDisplayName;
-    await db.store.update({ where: { code: store.code }, data: { ownerDisplayName } });
-  }));
 }
 
 /** Highest-numbered version currently marked PUBLISHED (the live file), if any. */

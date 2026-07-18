@@ -15,7 +15,7 @@ function avatarUrl(discordId: string, avatar: string | null): string | null {
 }
 
 export function registerAuthRoutes(app: FastifyInstance, deps: RouteDeps): void {
-  const { config, db, robloxIdentity } = deps;
+  const { config, db } = deps;
 
   app.get("/api/auth/login", async (_request, reply) => {
     const state = randomBytes(24).toString("hex");
@@ -79,18 +79,6 @@ export function registerAuthRoutes(app: FastifyInstance, deps: RouteDeps): void 
     const isAdmin = app.isAdmin(user.sub);
     const owned = await db.store.findMany({ where: { ownerDiscordId: user.sub }, select: { code: true } });
     const role = isAdmin ? "admin" : owned.length > 0 ? "owner" : "none";
-
-    // Keep assigned stores labelled with the owner's Roblox username, as resolved
-    // by the bot's Bloxlink integration. Never replace it with a Discord name.
-    if (owned.length > 0) {
-      const robloxUsername = await robloxIdentity.usernameForDiscord(user.sub);
-      if (robloxUsername) {
-        await db.store.updateMany({
-          where: { ownerDiscordId: user.sub, NOT: { ownerDisplayName: robloxUsername } },
-          data: { ownerDisplayName: robloxUsername },
-        });
-      }
-    }
 
     return {
       authenticated: true,
