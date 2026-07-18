@@ -47,6 +47,9 @@ export function registerAuthRoutes(app: FastifyInstance, deps: RouteDeps): void 
       try {
         const accessToken = await exchangeCode(config, code);
         const profile = await fetchDiscordUser(accessToken);
+        const isAllowed = app.isAdmin(profile.id)
+          || await db.store.count({ where: { ownerDiscordId: profile.id } }) > 0;
+        if (!isAllowed) return failure("not_assigned");
         const payload: SessionUser = {
           sub: profile.id,
           username: profile.username,

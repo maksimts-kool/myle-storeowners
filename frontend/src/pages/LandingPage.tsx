@@ -7,6 +7,7 @@ const AUTH_ERRORS: Record<string, string> = {
   invalid_state: "Your login session expired. Please try again.",
   login_failed: "Discord login failed. Please try again.",
   access_denied: "You cancelled the Discord authorization.",
+  not_assigned: "Your Discord account is not assigned to a store.",
 };
 
 export function LandingPage() {
