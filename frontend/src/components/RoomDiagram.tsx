@@ -182,10 +182,18 @@ interface DimensionProps {
   away: Pt; // the diagram centre — ticks and text are pushed away from it
   fs: number;
   palette: Palette;
+  /** Pull both ends in by this much, to leave a gap either side of the rule. */
+  inset?: number;
 }
 
 /** A drafting-style dimension line: a rule with end ticks and a label beside it. */
-function Dimension({ from, to, label, away, fs, palette }: DimensionProps) {
+function Dimension({ from: a, to: b, label, away, fs, palette, inset = 0 }: DimensionProps) {
+  const span = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+  // Never eat the whole rule: a very short one just loses its gaps.
+  const trim = Math.min(inset, span * 0.3);
+  const from = { x: a.x + ((b.x - a.x) / span) * trim, y: a.y + ((b.y - a.y) / span) * trim };
+  const to = { x: b.x - ((b.x - a.x) / span) * trim, y: b.y - ((b.y - a.y) / span) * trim };
+
   const dx = to.x - from.x;
   const dy = to.y - from.y;
   const len = Math.hypot(dx, dy) || 1;
@@ -424,6 +432,26 @@ export function RoomDiagram({ room, height = 320 }: RoomDiagramProps) {
   // The two far walls are dimensioned at their top edge: a floor-level rule
   // behind a tall wall would be drawn over by the wall itself.
   const corner = gap * 0.55;
+  // How far the doorway sits from its wall's first corner, drawn on the wall's
+  // own inside face between the corner and the door frame — the gap it measures
+  // is right there to compare against. The entrance always ends up on the back
+  // wall of the view, which is solid, so the rule is never cut away. Dropped
+  // when the door starts in the corner and the rule would collapse to a point.
+  const doorDim = entrance.offset > 0.05
+    ? {
+        from: wallPoint(eg, 0, entrance.height * 0.55),
+        to: wallPoint(eg, entrance.offset, entrance.height * 0.55),
+      }
+    : null;
+  // The label has to stay inside its own run, or it laps over the door frame it
+  // is measuring up to. Text steps down to fit the wall left of the door, and a
+  // door close to the corner drops to the bare number rather than shrinking the
+  // wording past reading size.
+  const doorInset = fs * 0.3;
+  const fitFs = (text: string) => (entrance.offset - doorInset * 2) / (text.length * 0.62);
+  const wordy = `From corner · ${studs(entrance.offset)}`;
+  const doorLabel = fitFs(wordy) >= fs * 0.55 ? wordy : studs(entrance.offset);
+  const doorFs = Math.max(fs * 0.45, Math.min(fs * 0.82, fitFs(doorLabel)));
   const wallDims = [
     { wall: "back" as Wall, from: project(0, H, -gap), to: project(W, H, -gap), len: W },
     { wall: "right" as Wall, from: project(W + gap, 0, 0), to: project(W + gap, 0, D), len: D },
@@ -502,6 +530,17 @@ export function RoomDiagram({ room, height = 320 }: RoomDiagramProps) {
         fs={fs}
         palette={palette}
       />
+      {doorDim && (
+        <Dimension
+          from={doorDim.from}
+          to={doorDim.to}
+          label={doorLabel}
+          away={centre}
+          fs={doorFs}
+          palette={palette}
+          inset={doorInset}
+        />
+      )}
     </svg>
   );
 }
