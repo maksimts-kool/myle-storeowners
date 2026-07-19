@@ -54,7 +54,7 @@ const createStoreSchema = z.object({
   code: z.string().trim().regex(/^[A-Za-z0-9_-]{1,16}$/, "Code must be 1-16 letters, digits, - or _"),
   floor: z.coerce.number().int().min(1).max(10).optional(),
   displayName: z.string().trim().min(1).max(80).optional(),
-  status: z.enum(["OPEN", "CLOSED"]).optional(),
+  status: z.enum(["OPEN", "CLOSED", "ELECTION"]).optional(),
   ownerDiscordId: discordId.optional(),
   initialVersion: z.coerce.number().int().min(1).max(999, "Version must be between 1 and 999"),
   creationDate,
@@ -64,7 +64,7 @@ const createStoreSchema = z.object({
 const updateStoreSchema = z.object({
   floor: z.coerce.number().int().min(1).max(10).optional(),
   displayName: z.string().trim().min(1).max(80).optional(),
-  status: z.enum(["OPEN", "CLOSED"]).optional(),
+  status: z.enum(["OPEN", "CLOSED", "ELECTION"]).optional(),
   ownerDiscordId: discordId.optional(),
   initialVersion: z.coerce.number().int().min(1).max(999, "Version must be between 1 and 999").optional(),
   creationDate: creationDate.optional(),
@@ -90,7 +90,7 @@ async function loadVersionInStore(deps: RouteDeps, code: string, id: string): Pr
 
 export function registerAdminRoutes(app: FastifyInstance, deps: RouteDeps): void {
   const { db, config, notifier, robloxIdentity } = deps;
-  const admin = { preHandler: app.requireAdmin };
+  const admin = { preHandler: app.requireEffectiveAdmin };
 
   // The portal never accepts a typed Discord ID. It receives the bot's list of
   // Bloxlink-verified members that are still in the configured Discord server.
@@ -127,6 +127,9 @@ export function registerAdminRoutes(app: FastifyInstance, deps: RouteDeps): void
     const input = createStoreSchema.parse(request.body);
     const existing = await db.store.findUnique({ where: { code: input.code } });
     if (existing) throw conflict("store_exists", `Store ${input.code} already exists`);
+    if (input.status === "ELECTION" && input.ownerDiscordId) {
+      throw badRequest("election_store_has_owner", "An election store must start without an owner");
+    }
     const owner = input.ownerDiscordId
       ? await robloxIdentity.verifiedMemberForDiscord(input.ownerDiscordId)
       : null;
@@ -153,6 +156,17 @@ export function registerAdminRoutes(app: FastifyInstance, deps: RouteDeps): void
     const input = updateStoreSchema.parse(request.body);
     const store = await db.store.findUnique({ where: { code: request.params.code } });
     if (!store) throw notFound("store_not_found");
+    const nextStatus = input.status ?? store.status;
+    const nextOwner = input.ownerDiscordId === undefined ? store.ownerDiscordId : input.ownerDiscordId;
+    if (nextStatus === "ELECTION" && nextOwner) {
+      throw badRequest("election_store_has_owner", "Clear the owner before starting an election");
+    }
+    if (store.status === "ELECTION" && nextStatus !== "ELECTION") {
+      const activeApplications = await db.storeApplication.count({ where: { storeCode: store.code, status: "APPLIED" } });
+      if (activeApplications > 0) {
+        throw badRequest("active_election_applications", "Select, remove, or mark every active applicant before closing this election");
+      }
+    }
     const isCreatingIdentifier = input.initialVersion !== undefined;
     if (isCreatingIdentifier && store.storeIdentifier) {
       throw badRequest("store_identifier_exists", "This store already has an identifier");

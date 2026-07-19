@@ -73,3 +73,9 @@ export function authCookiePath(config: Config): string {
   const basePath = publicBasePath(config);
   return basePath === "/" ? "/api/auth" : `${basePath}/api/auth`;
 }
+
+/** Role-preview debugging is intentionally available only from a local portal. */
+export function localDebugModeEnabled(config: Config): boolean {
+  const hostname = new URL(config.PUBLIC_BASE_URL).hostname.toLowerCase();
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || hostname === "[::1]";
+}

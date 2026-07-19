@@ -12,6 +12,8 @@ import { registerAuthRoutes } from "./routes/auth.js";
 import { registerStoreRoutes } from "./routes/stores.js";
 import { registerAdminRoutes } from "./routes/admin.js";
 import { registerSettingsRoutes } from "./routes/settings.js";
+import { registerAdminApplicationRoutes, registerApplicationRoutes } from "./routes/applications.js";
+import { registerDebugRoutes } from "./routes/debug.js";
 
 function errorType(error: unknown): string {
   return error instanceof Error ? error.name : "UnknownError";
@@ -47,8 +49,11 @@ export async function buildServer(config: Config, prisma: typeof database): Prom
   });
 
   registerAuthRoutes(app, deps);
+  registerDebugRoutes(app, deps);
   registerStoreRoutes(app, deps);
   registerAdminRoutes(app, deps);
+  registerApplicationRoutes(app, deps);
+  registerAdminApplicationRoutes(app, deps);
   registerSettingsRoutes(app, deps);
 
   app.setErrorHandler((error: unknown, request, reply) => {

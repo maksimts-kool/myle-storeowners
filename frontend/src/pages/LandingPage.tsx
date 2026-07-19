@@ -7,7 +7,7 @@ const AUTH_ERRORS: Record<string, string> = {
   invalid_state: "Your login session expired. Please try again.",
   login_failed: "Discord login failed. Please try again.",
   access_denied: "You cancelled the Discord authorization.",
-  not_assigned: "Your Discord account is not assigned to a store.",
+  not_verified: "Your Discord account must have the Bloxlink Verified role in the server.",
 };
 
 export function LandingPage() {
@@ -25,7 +25,7 @@ export function LandingPage() {
               <Text c="dimmed" ta="center">Store Owners Portal</Text>
             </Stack>
             <Text ta="center" size="sm" c="dimmed">
-              Upload new versions, download your files, and track your store.
+              Browse the mall, vote in elections, and manage the stores assigned to you.
             </Text>
 
             {error && (
@@ -46,7 +46,7 @@ export function LandingPage() {
               Log in with Discord
             </Button>
             <Text size="xs" c="dimmed" ta="center">
-              Use the Discord account linked to your store.
+              Use a Discord account with the server's Bloxlink Verified role.
             </Text>
           </Stack>
         </Card>

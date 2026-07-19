@@ -39,6 +39,7 @@ export const versionLabel = (status: VersionStatus) => VERSION_LABELS[status];
 
 export function storeStatusColor(status: StoreStatus, statusLabel: string): string {
   if (status === "CLOSED") return "gray";
+  if (status === "ELECTION") return "grape";
   if (statusLabel.startsWith("Live")) return "violet";
   if (statusLabel.startsWith("Approved")) return "teal";
   if (statusLabel.startsWith("Waiting")) return "yellow";

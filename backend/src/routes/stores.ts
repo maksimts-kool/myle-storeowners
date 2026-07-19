@@ -1,6 +1,7 @@
 import path from "node:path";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { RouteDeps } from "../deps.js";
+import { isEffectiveAdmin, isEffectiveStoreOwner } from "../auth/plugin.js";
 import { badRequest, forbidden, notFound } from "../lib/errors.js";
 import { streamDownload } from "../lib/download.js";
 import {
@@ -27,29 +28,46 @@ async function requireViewableStore(
 ): Promise<{ store: StoreWithFiles; isAdmin: boolean; isOwner: boolean }> {
   const store = await loadStore(deps.db, code);
   if (!store) throw notFound("store_not_found");
-  const isAdmin = app.isAdmin(request.user.sub);
-  const isOwner = store.ownerDiscordId === request.user.sub;
-  if (!isAdmin && !isOwner) throw forbidden("not_your_store");
+  const isAdmin = isEffectiveAdmin(app, request);
+  const isOwner = isEffectiveStoreOwner(app, request, store);
   return { store, isAdmin, isOwner };
+}
+
+async function requireStoreManager(
+  app: FastifyInstance,
+  deps: RouteDeps,
+  request: FastifyRequest,
+  code: string,
+): Promise<{ store: StoreWithFiles; isAdmin: boolean; isOwner: boolean }> {
+  const access = await requireViewableStore(app, deps, request, code);
+  if (!access.isAdmin && !access.isOwner) throw forbidden("not_your_store");
+  return access;
 }
 
 export function registerStoreRoutes(app: FastifyInstance, deps: RouteDeps): void {
   const { db, config, notifier } = deps;
 
   app.get("/api/stores", { preHandler: app.authenticate }, async (request) => {
-    const isAdmin = app.isAdmin(request.user.sub);
+    const isAdmin = isEffectiveAdmin(app, request);
     const stores = await loadStoresForUser(db, request.user, isAdmin);
-    return { stores: stores.map((store) => toStoreSummary(store, request.user, isAdmin)) };
+    return {
+      stores: stores.map((store) => toStoreSummary(
+        store,
+        request.user,
+        isAdmin,
+        isEffectiveStoreOwner(app, request, store),
+      )),
+    };
   });
 
   app.get<{ Params: { code: string } }>(
     "/api/stores/:code",
     { preHandler: app.authenticate },
     async (request) => {
-      const { store, isAdmin } = await requireViewableStore(app, deps, request, request.params.code);
-      const detail = toStoreDetail(store, request.user, isAdmin);
-      // When a store has no template of its own, offer the global templates for rebuilding.
-      if (detail.templates.length === 0) {
+      const { store, isAdmin, isOwner } = await requireViewableStore(app, deps, request, request.params.code);
+      const detail = toStoreDetail(store, request.user, isAdmin, isOwner);
+      // Only a store owner or game owner can access rebuilding templates.
+      if (detail.canViewRestrictedFiles && detail.templates.length === 0) {
         const globals = await db.templateFile.findMany({ where: { storeCode: null }, orderBy: { createdAt: "desc" } });
         detail.templates = globals.map(toTemplateDto);
       }
@@ -62,8 +80,8 @@ export function registerStoreRoutes(app: FastifyInstance, deps: RouteDeps): void
     "/api/stores/:code/versions",
     { preHandler: app.authenticate },
     async (request, reply) => {
-      const { store } = await requireViewableStore(app, deps, request, request.params.code);
-      if (store.status === "CLOSED") throw badRequest("store_closed", "This store is closed and cannot accept uploads");
+      const { store } = await requireStoreManager(app, deps, request, request.params.code);
+      if (store.status !== "OPEN") throw badRequest("store_not_open", "Only open stores can accept uploads");
 
       const upload = await request.file();
       if (!upload) throw badRequest("no_file", "A file is required");
@@ -111,7 +129,7 @@ export function registerStoreRoutes(app: FastifyInstance, deps: RouteDeps): void
     "/api/stores/:code/versions/:id/download",
     { preHandler: app.authenticate },
     async (request, reply) => {
-      const { store } = await requireViewableStore(app, deps, request, request.params.code);
+      const { store } = await requireStoreManager(app, deps, request, request.params.code);
       const version = store.versions.find((v) => v.id === request.params.id);
       if (!version || !version.filePath) throw notFound("version_not_found");
       return streamDownload(reply, version.filePath, version.fileName);
@@ -123,7 +141,7 @@ export function registerStoreRoutes(app: FastifyInstance, deps: RouteDeps): void
     "/api/stores/:code/current/download",
     { preHandler: app.authenticate },
     async (request, reply) => {
-      const { store } = await requireViewableStore(app, deps, request, request.params.code);
+      const { store } = await requireStoreManager(app, deps, request, request.params.code);
       const current = currentPublishedVersion(store);
       if (!current || !current.filePath) throw notFound("no_current_file");
       return streamDownload(reply, current.filePath, current.fileName);
@@ -135,7 +153,7 @@ export function registerStoreRoutes(app: FastifyInstance, deps: RouteDeps): void
     "/api/stores/:code/template/download",
     { preHandler: app.authenticate },
     async (request, reply) => {
-      const { store } = await requireViewableStore(app, deps, request, request.params.code);
+      const { store } = await requireStoreManager(app, deps, request, request.params.code);
       let template = null as Awaited<ReturnType<typeof db.templateFile.findUnique>> | null;
       if (request.query.id) {
         const found = await db.templateFile.findUnique({ where: { id: request.query.id } });

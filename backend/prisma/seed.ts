@@ -13,6 +13,9 @@ const INITIAL_STORES: Array<{ code: string; floor: number; status: StoreStatus }
   { code: "B1", floor: 2, status: "OPEN" },
   { code: "B2", floor: 2, status: "OPEN" },
   { code: "B3", floor: 2, status: "OPEN" },
+  { code: "B4", floor: 2, status: "ELECTION" },
+  { code: "B5", floor: 2, status: "ELECTION" },
+  { code: "B6", floor: 2, status: "ELECTION" },
 ];
 
 async function main(): Promise<void> {

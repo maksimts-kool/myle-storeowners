@@ -80,6 +80,7 @@ export function StoreFormModal({
       label: store?.ownerDisplayName ? `${store.ownerDisplayName} · no longer verified` : "Current assignment · no longer verified",
     });
   }
+  const isElection = form.status === "ELECTION";
 
   function submit() {
     const payload = {
@@ -121,19 +122,27 @@ export function StoreFormModal({
           <SegmentedControl
             fullWidth
             value={form.status}
-            onChange={(v) => set("status", v as StoreStatus)}
-            data={[{ label: "Open", value: "OPEN" }, { label: "Closed", value: "CLOSED" }]}
+            onChange={(v) => {
+              set("status", v as StoreStatus);
+              if (v === "ELECTION") set("ownerDiscordId", "");
+            }}
+            data={[
+              { label: "Open", value: "OPEN" },
+              { label: "Election", value: "ELECTION" },
+              { label: "Closed", value: "CLOSED" },
+            ]}
           />
         </div>
         <Select
           label="Store owner"
           placeholder={verifiedMembers.isLoading ? "Loading verified members…" : "Choose a verified member"}
-          value={form.ownerDiscordId || null}
+          value={isElection ? null : form.ownerDiscordId || null}
           data={ownerOptions}
           searchable
           clearable
+          disabled={isElection}
           nothingFoundMessage={verifiedMembers.isLoading ? "Loading verified members…" : "No verified members found"}
-          description="Only Bloxlink-verified members can be assigned."
+          description={isElection ? "Election stores have no owner until a candidate is selected." : "Only Bloxlink-verified members can be assigned."}
           onChange={(value) => set("ownerDiscordId", value ?? "")}
         />
         {verifiedMembers.isError && <Text size="xs" c="red">Verified members could not be loaded. You can still remove the current assignment.</Text>}

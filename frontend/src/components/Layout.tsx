@@ -1,5 +1,5 @@
 import { AppShell, Avatar, Badge, Button, Group, Menu, Text, Title, UnstyledButton } from "@mantine/core";
-import { IconBuildingStore, IconLogout, IconSettings, IconShieldCog } from "@tabler/icons-react";
+import { IconBuildingStore, IconCheckbox, IconLogout, IconSettings, IconShieldCog } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import type { ReactNode } from "react";
@@ -9,7 +9,8 @@ export function Layout({ me, children }: { me: MeResponse; children: ReactNode }
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
-  const isAdmin = me.role === "admin";
+  const isAdmin = me.role === "game_owner";
+  const isStoreOwner = me.role === "store_owner";
 
   async function handleLogout() {
     await logout();
@@ -18,6 +19,7 @@ export function Layout({ me, children }: { me: MeResponse; children: ReactNode }
   }
 
   const displayName = me.user?.globalName || me.user?.username || "Account";
+  const roleLabel = isAdmin ? "Game owner" : isStoreOwner ? "Store owner" : "Member";
 
   return (
     <AppShell header={{ height: 64 }} padding="md">
@@ -41,6 +43,15 @@ export function Layout({ me, children }: { me: MeResponse; children: ReactNode }
             >
               Stores
             </Button>
+            <Button
+              component={Link}
+              to="/applications"
+              variant={location.pathname.startsWith("/applications") ? "light" : "subtle"}
+              leftSection={<IconCheckbox size={18} />}
+              visibleFrom="xs"
+            >
+              Elections
+            </Button>
             {isAdmin && (
               <Button
                 component={Link}
@@ -59,7 +70,9 @@ export function Layout({ me, children }: { me: MeResponse; children: ReactNode }
                     <Avatar src={me.user?.avatarUrl} radius="xl" size={34} color="grape">
                       {displayName.slice(0, 2).toUpperCase()}
                     </Avatar>
-                    {isAdmin && <Badge size="xs" color="grape" visibleFrom="sm">Game owner</Badge>}
+                    <Badge size="xs" color={me.debugMode ? "orange" : isAdmin ? "grape" : isStoreOwner ? "violet" : "blue"} visibleFrom="sm">
+                      {me.debugMode ? `Debug: ${roleLabel}` : roleLabel}
+                    </Badge>
                   </Group>
                 </UnstyledButton>
               </Menu.Target>
@@ -67,7 +80,10 @@ export function Layout({ me, children }: { me: MeResponse; children: ReactNode }
                 <Menu.Label>{displayName}</Menu.Label>
                 {/* Navigation shortcuts — only on mobile, where the top-bar buttons are hidden. */}
                 <Menu.Item component={Link} to="/stores" leftSection={<IconBuildingStore size={16} />} hiddenFrom="xs">
-                  My stores
+                  Stores
+                </Menu.Item>
+                <Menu.Item component={Link} to="/applications" leftSection={<IconCheckbox size={16} />} hiddenFrom="xs">
+                  Elections
                 </Menu.Item>
                 {isAdmin && (
                   <Menu.Item component={Link} to="/admin" leftSection={<IconShieldCog size={16} />} hiddenFrom="xs">

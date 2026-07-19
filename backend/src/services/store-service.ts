@@ -44,6 +44,8 @@ export interface StoreSummaryDto {
   hasTemplate: boolean;
   isOwner: boolean;
   canManage: boolean;
+  canDownloadCurrent: boolean;
+  canViewRestrictedFiles: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -64,7 +66,6 @@ export async function loadStore(db: Db, code: string): Promise<StoreWithFiles | 
 
 export async function loadStoresForUser(db: Db, user: SessionUser, isAdmin: boolean): Promise<StoreWithFiles[]> {
   return db.store.findMany({
-    where: isAdmin ? {} : { ownerDiscordId: user.sub },
     include: STORE_INCLUDE,
     orderBy: [{ floor: "asc" }, { code: "asc" }],
   });
@@ -83,6 +84,7 @@ export function latestVersion(store: StoreWithFiles): StoreVersion | null {
 
 export function deriveStatusLabel(store: StoreWithFiles): string {
   if (store.status === "CLOSED") return "Closed";
+  if (store.status === "ELECTION") return "Election in progress";
   const latest = latestVersion(store);
   if (!latest) return "No file submitted yet";
   switch (latest.status) {
@@ -127,9 +129,16 @@ export function toTemplateDto(t: TemplateFile): TemplateDto {
   };
 }
 
-export function toStoreSummary(store: StoreWithFiles, user: SessionUser, isAdmin: boolean): StoreSummaryDto {
+export function toStoreSummary(
+  store: StoreWithFiles,
+  user: SessionUser,
+  isAdmin: boolean,
+  effectiveOwner = store.ownerDiscordId === user.sub,
+): StoreSummaryDto {
   const current = currentPublishedVersion(store);
   const latest = latestVersion(store);
+  const isOwner = effectiveOwner;
+  const canViewRestrictedFiles = isAdmin || isOwner;
   return {
     code: store.code,
     floor: store.floor,
@@ -152,25 +161,33 @@ export function toStoreSummary(store: StoreWithFiles, user: SessionUser, isAdmin
       ? { id: latest.id, versionNumber: latest.versionNumber, status: latest.status, createdAt: latest.createdAt.toISOString() }
       : null,
     hasTemplate: store.templates.length > 0,
-    isOwner: store.ownerDiscordId === user.sub,
+    isOwner,
     canManage: isAdmin,
+    canDownloadCurrent: canViewRestrictedFiles,
+    canViewRestrictedFiles,
     createdAt: store.createdAt.toISOString(),
     updatedAt: store.updatedAt.toISOString(),
   };
 }
 
-export function toStoreDetail(store: StoreWithFiles, user: SessionUser, isAdmin: boolean): StoreDetailDto {
-  const isOwner = store.ownerDiscordId === user.sub;
+export function toStoreDetail(
+  store: StoreWithFiles,
+  user: SessionUser,
+  isAdmin: boolean,
+  effectiveOwner = store.ownerDiscordId === user.sub,
+): StoreDetailDto {
+  const isOwner = effectiveOwner;
+  const canViewRestrictedFiles = isAdmin || isOwner;
   // Owners see the review note on their own submissions but not admin identities.
-  const versions = store.versions.map((v) => {
+  const versions = canViewRestrictedFiles ? store.versions.map((v) => {
     const dto = toVersionDto(v);
     if (!isAdmin) dto.reviewedByDiscordId = null;
     return dto;
-  });
+  }) : [];
   return {
-    ...toStoreSummary(store, user, isAdmin),
+    ...toStoreSummary(store, user, isAdmin, isOwner),
     versions,
-    templates: store.templates.map(toTemplateDto),
+    templates: canViewRestrictedFiles ? store.templates.map(toTemplateDto) : [],
     isOwner,
   };
 }

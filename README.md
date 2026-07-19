@@ -1,10 +1,11 @@
 # My Lifts Mall — Store Owners Portal
 
-A website where store owners in the Roblox mall game manage their store: upload a
-new `.rbxl` file, download their current and template files, and track its status
+A website where verified Roblox mall members browse stores, vote in vacant-store
+elections, and manage their assigned stores. Store owners upload new `.rbxl`
+files, download their current and template files, and track the review status
 (waiting for review → approved → published to the game). The game owner reviews
-submissions and publishes them. Everyone logs in with **Discord**, and all
-notifications are delivered as **Discord DMs** through the companion bot
+submissions, runs elections, and publishes files. Everyone logs in with
+**Discord**, and all notifications are delivered as **Discord DMs** through the companion bot
 ([`mylebot`](../mylebot)).
 
 Built with **React + Mantine** (frontend), **Fastify + Prisma + PostgreSQL**
@@ -21,6 +22,11 @@ Built with **React + Mantine** (frontend), **Fastify + Prisma + PostgreSQL**
    store identifier to that live version. Each action DMs the owner.
 4. **Published** becomes the store's current live file. Owners can always
    download their current file and any **template** you upload for rebuilding.
+5. A store with **ELECTION** status accepts one application from each verified
+   member (one application total across all election stores). Every verified
+   member can vote once per election store. A game owner selects, marks not
+   selected, or deletes applications from the dashboard. Selecting a candidate
+   assigns the store and opens it automatically.
 
 Store status shown to the owner is derived from their latest submission:
 `Waiting for review` → `Approved — waiting to be published` → `Live in game`
@@ -35,7 +41,8 @@ compose.yml  web (Caddy) + api + db (postgres) -> volumes: postgres_data, store_
 mylebot/   (separate repo) POST /internal/notify -> sends the Discord DMs
 ```
 
-The 8 initial stores (A1, A2, A3, A4 *closed*, A5 on floor 1; B1, B2, B3 on floor 2)
+The 11 initial stores (A1, A2, A3, A4 *closed*, A5 on floor 1; B1, B2, B3 on floor 2;
+B4, B5, B6 as *elections*)
 are seeded on first startup. After that you create / edit / delete stores from the
 admin panel. Uploaded files live on the `store_files` volume; the database stores
 only metadata.
@@ -85,10 +92,12 @@ docker compose up --build -d
 docker compose ps
 ```
 
-Open `http://localhost:8080`. Log in with Discord. Because your Discord ID is in
-`ADMIN_DISCORD_IDS`, you land on the **Admin dashboard**. When creating or editing
-a store, choose its owner from the searchable list of Bloxlink-verified members in
-the bot's Discord server. The store identifier is generated when the store is
+Open `http://localhost:8080`. Any Bloxlink-verified member of the bot's Discord
+server can log in. Because your Discord ID is in `ADMIN_DISCORD_IDS`, you land on
+the **Admin dashboard**. When creating or editing a store, choose its owner from
+the searchable list of Bloxlink-verified members in the bot's Discord server. Use
+the **Election** status for a vacant store; applications are managed from the
+dashboard. The store identifier is generated when the store is
 created from its code, version, and creation date (for example `A1.001.230425`);
 uploaded versions continue counting up automatically.
 
@@ -153,19 +162,51 @@ and Docker share one configuration.
 | `COOKIE_SECURE` | `auto` / `true` / `false`. `auto` = secure when `PUBLIC_BASE_URL` is https. |
 | `STORE_FILES_DIR` | Where uploaded files are stored (Docker: `/data/store-files`). |
 
-## Roles
+## Roles and election access
 
-- **Game owner (admin):** any Discord ID in `ADMIN_DISCORD_IDS`. Sees all stores,
-  reviews submissions, manages stores (create/edit/delete/status), uploads templates.
-- **Store owner:** a Bloxlink-verified Discord member assigned to a store. Sees only their store(s),
-  uploads new versions, downloads current + template files.
-- Anyone else who logs in sees a friendly "no store assigned yet" screen.
+- **Game owner:** any Discord ID in `ADMIN_DISCORD_IDS`. Has all permissions:
+  sees and manages all stores, files, templates, submissions, and applications.
+- **Store owner:** a verified member assigned to one or more stores. They manage
+  their own stores, can download their own live/template files, and can vote in
+  every election other than one where they have an active application. Other
+  stores use member-level access.
+- **Member:** a Bloxlink-verified member with no assigned store. They can browse
+  every store's layout and current-live-file details, but cannot download files,
+  view templates, or view version history. They can vote in every election
+  other than one where they have an active application.
+
+Role-preview debug mode is available only when `PUBLIC_BASE_URL` uses
+`localhost`, `127.0.0.1`, or IPv6 localhost. It is not registered or shown on
+the deployed site.
+
+### Election rules
+
+- Only stores marked **ELECTION** accept applications.
+- A verified member can submit one application total while its record exists.
+  Cancelling or not being selected does not unlock another application; a game
+  owner deleting the application record does. The member can still vote.
+- Each verified member gets one vote per store election and can undo it to pick
+  another candidate. An active applicant cannot vote for anyone in their own
+  store's election, including themselves.
+- Game owners can select a candidate (which opens and assigns the store), mark a
+  candidate not selected, or delete an application and its votes. Deleting the
+  record lets that user apply again. Applicants receive DMs when they apply, are
+  selected, are not selected, or are removed.
+
+### Debug role preview
+
+A real game owner can open **Settings → Debug role preview** and temporarily act
+as a Member, a Store owner for a selected store, or a Game owner. The signed
+browser-session override changes both the UI and API permissions without changing
+real store assignments. The picker remains available while previewing a lower
+role, and **Stop debugging** restores normal Game owner access.
 
 ## Notifications
 
 DMs are sent through the bot for: submission received (owner), review needed
-(admins), approved, declined (with reason), and published (owner). Adding a new
-notification is one method in [`backend/src/services/notifier.ts`](backend/src/services/notifier.ts)
+(game owners), approved, declined (with reason), published (owner), application
+received, selected, not selected, and removed. Adding a new notification is one
+method in [`backend/src/services/notifier.ts`](backend/src/services/notifier.ts)
 plus a call site. Delivery is best-effort — a failed DM is logged (see the
 `NotificationLog` table) and never blocks the store action.
 

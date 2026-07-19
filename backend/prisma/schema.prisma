@@ -9,6 +9,7 @@ datasource db {
 enum StoreStatus {
   OPEN
   CLOSED
+  ELECTION
 }
 
 enum VersionStatus {
@@ -19,8 +20,16 @@ enum VersionStatus {
   SUPERSEDED
 }
 
+enum ApplicationStatus {
+  APPLIED
+  SELECTED
+  NOT_SELECTED
+  REMOVED
+  CANCELLED
+}
+
 model Store {
-  code             String         @id // "A1".."B3" or any admin-created code
+  code             String         @id // e.g. "A1".."B6" or any admin-created code
   floor            Int // 1 for A*, 2 for B*
   displayName      String
   status           StoreStatus    @default(OPEN)
@@ -33,8 +42,51 @@ model Store {
   updatedAt        DateTime       @updatedAt
   versions         StoreVersion[]
   templates        TemplateFile[]
+  applications     StoreApplication[]
+  votes            ElectionVote[]
 
   @@index([ownerDiscordId])
+}
+
+/** A verified member's one-time request to manage an election store. */
+model StoreApplication {
+  id                    String            @id @default(cuid())
+  storeCode             String
+  store                 Store             @relation(fields: [storeCode], references: [code], onDelete: Cascade)
+  applicantDiscordId    String
+  applicantDisplayName  String
+  applicantRobloxName   String?
+  status                ApplicationStatus @default(APPLIED)
+  resolvedAt            DateTime?
+  resolvedByDiscordId   String?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  votes                 ElectionVote[]
+
+  // One active/historical row per member while it exists.
+  @@unique([applicantDiscordId])
+  @@index([storeCode, status, createdAt])
+}
+
+// Retained for schema-compatible deployments that previously created this
+// table. Application eligibility is now determined only by StoreApplication.
+model ElectionApplicationLock {
+  discordId String   @id
+  lockedAt  DateTime @default(now())
+}
+
+/** A verified member gets one immutable vote for each election store. */
+model ElectionVote {
+  id              String           @id @default(cuid())
+  storeCode       String
+  store           Store            @relation(fields: [storeCode], references: [code], onDelete: Cascade)
+  applicationId   String
+  application     StoreApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  voterDiscordId  String
+  createdAt       DateTime         @default(now())
+
+  @@unique([storeCode, voterDiscordId])
+  @@index([applicationId])
 }
 
 model StoreVersion {
@@ -78,6 +130,10 @@ model NotificationPreference {
   submissionApproved  Boolean  @default(true)
   submissionDeclined  Boolean  @default(true)
   submissionPublished Boolean  @default(true)
+  applicationApplied     Boolean  @default(true)
+  applicationSelected    Boolean  @default(true)
+  applicationNotSelected Boolean @default(true)
+  applicationRemoved     Boolean  @default(true)
   updatedAt           DateTime @updatedAt
 }
 

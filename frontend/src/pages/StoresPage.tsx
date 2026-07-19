@@ -13,12 +13,12 @@ export function StoresPage({ me }: { me: MeResponse }) {
         <div>
           <Title order={2}>
             <IconBuildingStore size={26} style={{ verticalAlign: "-4px", marginRight: 8 }} />
-            {me.role === "admin" ? "All stores" : "My stores"}
+            All stores
           </Title>
           <Text c="dimmed">
-            {me.role === "admin"
-              ? "Every store in the mall."
-              : "Open a store to upload files and see its status."}
+            {me.role === "store_owner"
+              ? "Manage your own stores, and browse the rest of the mall."
+              : "Browse store layouts and current live files across the mall."}
           </Text>
         </div>
 
@@ -29,8 +29,8 @@ export function StoresPage({ me }: { me: MeResponse }) {
 
         {stores && stores.length === 0 && (
           <Alert color="grape" icon={<IconMoodEmpty size={20} />} radius="lg">
-            <Text fw={600}>No stores assigned to you yet</Text>
-            <Text size="sm">Ask the game owner to assign your store to you.</Text>
+            <Text fw={600}>No stores in the mall yet</Text>
+            <Text size="sm">Create a store from the game owner dashboard.</Text>
           </Alert>
         )}
 

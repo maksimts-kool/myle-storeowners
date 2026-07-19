@@ -7,10 +7,11 @@ import { StoresPage } from "./pages/StoresPage";
 import { StoreDetailPage } from "./pages/StoreDetailPage";
 import { AdminPage } from "./pages/AdminPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { ApplicationsPage } from "./pages/ApplicationsPage";
 import type { MeResponse } from "./api/client";
 
 function HomeRedirect({ me }: { me: MeResponse }) {
-  return <Navigate to={me.role === "admin" ? "/admin" : "/stores"} replace />;
+  return <Navigate to={me.role === "game_owner" ? "/admin" : "/stores"} replace />;
 }
 
 export function App() {
@@ -39,10 +40,11 @@ export function App() {
         <Route path="/" element={<HomeRedirect me={me} />} />
         <Route path="/stores" element={<StoresPage me={me} />} />
         <Route path="/stores/:code" element={<StoreDetailPage />} />
+        <Route path="/applications" element={<ApplicationsPage />} />
         <Route path="/settings" element={<SettingsPage me={me} />} />
         <Route
           path="/admin"
-          element={me.role === "admin" ? <AdminPage /> : <Navigate to="/stores" replace />}
+          element={me.role === "game_owner" ? <AdminPage /> : <Navigate to="/stores" replace />}
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

@@ -5,7 +5,7 @@ import {
 } from "@mantine/core";
 import {
   IconArrowLeft, IconBox, IconCheck, IconClock, IconDownload, IconFileDownload, IconMapPin,
-  IconRuler2, IconRocket, IconTemplate, IconTrash, IconUpload, IconX,
+  IconRuler2, IconRocket, IconTemplate, IconTrash, IconUpload, IconUserCheck, IconX,
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
@@ -22,7 +22,15 @@ import { floorLabel, formatBytes, formatDate, storeStatusColor, versionIdentifie
 const ACCEPTED = [".rbxl", ".rbxlx"];
 const okExt = (name: string) => ACCEPTED.some((e) => name.toLowerCase().endsWith(e));
 
-function CurrentFileCard({ code, current }: { code: string; current: { versionNumber: number; fileName: string; fileSize: number; createdAt: string } | null }) {
+function CurrentFileCard({
+  code,
+  current,
+  canDownload,
+}: {
+  code: string;
+  current: { versionNumber: number; fileName: string; fileSize: number; createdAt: string } | null;
+  canDownload: boolean;
+}) {
   return (
     <Card withBorder radius="lg" padding="lg" h="100%">
       <Group gap="sm" mb="sm">
@@ -36,9 +44,11 @@ function CurrentFileCard({ code, current }: { code: string; current: { versionNu
             <Text size="sm" truncate title={current.fileName}>{current.fileName}</Text>
           </Group>
           <Text size="xs" c="dimmed">{formatBytes(current.fileSize)} · published {formatDate(current.createdAt)}</Text>
-          <Button mt="sm" component="a" href={currentDownloadUrl(code)} leftSection={<IconDownload size={18} />} variant="light" color="violet">
-            Download current file
-          </Button>
+          {canDownload ? (
+            <Button mt="sm" component="a" href={currentDownloadUrl(code)} leftSection={<IconDownload size={18} />} variant="light" color="violet">
+              Download current file
+            </Button>
+          ) : <Text size="xs" c="dimmed" mt="sm">Members can view the live-file details, but only this store's owner or a game owner can download it.</Text>}
         </Stack>
       ) : (
         <Text c="dimmed" size="sm">No file has been published to the game yet.</Text>
@@ -246,8 +256,13 @@ export function StoreDetailPage() {
                 <Group gap="xs">
                   <Badge variant="light" color="blue" leftSection={<IconMapPin size={12} />}>{floorLabel(store.floor)}</Badge>
                   <Badge color={storeStatusColor(store.status, store.statusLabel)} variant={store.status === "CLOSED" ? "outline" : "filled"}>
-                    {store.status === "CLOSED" ? "Closed" : store.statusLabel}
+                    {store.status === "CLOSED" ? "Closed" : store.status === "ELECTION" ? "Election in progress" : store.statusLabel}
                   </Badge>
+                  {store.isOwner && (
+                    <Badge color="teal" variant="light" leftSection={<IconUserCheck size={12} />}>
+                      Your store
+                    </Badge>
+                  )}
                 </Group>
               </Stack>
             </Group>
@@ -262,17 +277,21 @@ export function StoreDetailPage() {
 
         {store.room && <RoomCard room={store.room} />}
 
-        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="lg">
-          <CurrentFileCard code={store.code} current={store.currentVersion} />
-          <TemplateCard code={store.code} templates={store.templates} canManage={store.canManage} />
-        </SimpleGrid>
+        {store.canViewRestrictedFiles ? (
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="lg">
+            <CurrentFileCard code={store.code} current={store.currentVersion} canDownload={store.canDownloadCurrent} />
+            <TemplateCard code={store.code} templates={store.templates} canManage={store.canManage} />
+          </SimpleGrid>
+        ) : <CurrentFileCard code={store.code} current={store.currentVersion} canDownload={false} />}
 
-        {canUpload && <UploadCard code={store.code} disabled={store.status === "CLOSED"} />}
+        {canUpload && <UploadCard code={store.code} disabled={store.status !== "OPEN"} />}
 
-        <Card withBorder radius="lg" padding="lg">
-          <Divider label={<Text fw={700}>Version history</Text>} labelPosition="left" mb="md" />
-          <VersionTable code={store.code} versions={store.versions} canManage={store.canManage} />
-        </Card>
+        {store.canViewRestrictedFiles && (
+          <Card withBorder radius="lg" padding="lg">
+            <Divider label={<Text fw={700}>Version history</Text>} labelPosition="left" mb="md" />
+            <VersionTable code={store.code} versions={store.versions} canManage={store.canManage} />
+          </Card>
+        )}
       </Stack>
     </Container>
   );

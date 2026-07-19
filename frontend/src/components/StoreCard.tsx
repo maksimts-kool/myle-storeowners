@@ -1,5 +1,5 @@
 import { Badge, Card, Group, Stack, Text } from "@mantine/core";
-import { IconChevronRight, IconMapPin } from "@tabler/icons-react";
+import { IconChevronRight, IconMapPin, IconUserCheck } from "@tabler/icons-react";
 import { Link } from "react-router-dom";
 import type { StoreSummary } from "../api/client";
 import { floorLabel, storeStatusColor, versionIdentifier } from "../utils/format";
@@ -25,11 +25,18 @@ export function StoreCard({ store }: { store: StoreSummary }) {
             </Badge>
           </Group>
           <Badge className="store-card__badge" color={statusColor} variant={store.status === "CLOSED" ? "outline" : "filled"} size="lg">
-            {store.status === "CLOSED" ? "Closed" : store.statusLabel}
+            {store.status === "CLOSED" ? "Closed" : store.status === "ELECTION" ? "Election" : store.statusLabel}
           </Badge>
         </Group>
 
-        <Text fw={600} fz="lg">{store.displayName}</Text>
+        <Group gap="xs" wrap="wrap">
+          <Text fw={600} fz="lg">{store.displayName}</Text>
+          {store.isOwner && (
+            <Badge color="teal" variant="light" leftSection={<IconUserCheck size={12} />}>
+              Your store
+            </Badge>
+          )}
+        </Group>
 
         <Stack gap={2}>
           <Text size="sm" c="dimmed">

@@ -9,6 +9,10 @@ export interface NotificationPrefs {
   submissionApproved: boolean;
   submissionDeclined: boolean;
   submissionPublished: boolean;
+  applicationApplied: boolean;
+  applicationSelected: boolean;
+  applicationNotSelected: boolean;
+  applicationRemoved: boolean;
 }
 
 const DEFAULT_PREFS: NotificationPrefs = {
@@ -17,6 +21,10 @@ const DEFAULT_PREFS: NotificationPrefs = {
   submissionApproved: true,
   submissionDeclined: true,
   submissionPublished: true,
+  applicationApplied: true,
+  applicationSelected: true,
+  applicationNotSelected: true,
+  applicationRemoved: true,
 };
 
 const prefsSchema = z
@@ -26,6 +34,10 @@ const prefsSchema = z
     submissionApproved: z.boolean(),
     submissionDeclined: z.boolean(),
     submissionPublished: z.boolean(),
+    applicationApplied: z.boolean(),
+    applicationSelected: z.boolean(),
+    applicationNotSelected: z.boolean(),
+    applicationRemoved: z.boolean(),
   })
   .partial();
 

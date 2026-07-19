@@ -3,6 +3,7 @@ import type { FastifyInstance } from "fastify";
 import { authCookiePath, cookieIsSecure, publicBasePath } from "../config.js";
 import type { RouteDeps } from "../deps.js";
 import { sessionCookieOptions, SESSION_COOKIE } from "../auth/plugin.js";
+import { activeDebugRole } from "../auth/plugin.js";
 import { buildAuthorizeUrl, exchangeCode, fetchDiscordUser } from "../auth/oauth.js";
 import type { SessionUser } from "../types.js";
 
@@ -15,7 +16,7 @@ function avatarUrl(discordId: string, avatar: string | null): string | null {
 }
 
 export function registerAuthRoutes(app: FastifyInstance, deps: RouteDeps): void {
-  const { config, db } = deps;
+  const { config, db, robloxIdentity } = deps;
 
   app.get("/api/auth/login", async (_request, reply) => {
     const state = randomBytes(24).toString("hex");
@@ -47,9 +48,12 @@ export function registerAuthRoutes(app: FastifyInstance, deps: RouteDeps): void 
       try {
         const accessToken = await exchangeCode(config, code);
         const profile = await fetchDiscordUser(accessToken);
+        // Game owners always retain emergency access. Everyone else must be a
+        // current Bloxlink-verified member, whether they own a store, are
+        // applying for one, or are voting as a member.
         const isAllowed = app.isAdmin(profile.id)
-          || await db.store.count({ where: { ownerDiscordId: profile.id } }) > 0;
-        if (!isAllowed) return failure("not_assigned");
+          || await robloxIdentity.verifiedMemberForDiscord(profile.id) !== null;
+        if (!isAllowed) return failure("not_verified");
         const payload: SessionUser = {
           sub: profile.id,
           username: profile.username,
@@ -80,8 +84,17 @@ export function registerAuthRoutes(app: FastifyInstance, deps: RouteDeps): void 
     }
 
     const isAdmin = app.isAdmin(user.sub);
-    const owned = await db.store.findMany({ where: { ownerDiscordId: user.sub }, select: { code: true } });
-    const role = isAdmin ? "admin" : owned.length > 0 ? "owner" : "none";
+    const debugRole = activeDebugRole(app, request);
+    const owned = debugRole === "STORE_OWNER"
+      ? user.debugStoreCode ? [{ code: user.debugStoreCode }] : []
+      : debugRole === "MEMBER"
+        ? []
+        : await db.store.findMany({ where: { ownerDiscordId: user.sub }, select: { code: true } });
+    const role = debugRole === "MEMBER"
+      ? "member"
+      : debugRole === "STORE_OWNER"
+        ? "store_owner"
+        : isAdmin ? "game_owner" : owned.length > 0 ? "store_owner" : "member";
 
     return {
       authenticated: true,
@@ -94,6 +107,11 @@ export function registerAuthRoutes(app: FastifyInstance, deps: RouteDeps): void 
       },
       role,
       storeCodes: owned.map((s) => s.code),
+      canDebug: isAdmin && app.localDebugModeEnabled,
+      debugMode: debugRole ? {
+        role,
+        ...(debugRole === "STORE_OWNER" && user.debugStoreCode ? { storeCode: user.debugStoreCode } : {}),
+      } : null,
     };
   });
 }

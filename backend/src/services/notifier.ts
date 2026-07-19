@@ -1,5 +1,5 @@
 import type { FastifyBaseLogger } from "fastify";
-import type { Store, StoreVersion } from "@prisma/client";
+import type { Store, StoreApplication, StoreVersion } from "@prisma/client";
 import type { Config } from "../config.js";
 import type { prisma as database } from "../db.js";
 
@@ -11,7 +11,11 @@ export type NotificationKind =
   | "review_needed"
   | "submission_approved"
   | "submission_declined"
-  | "submission_published";
+  | "submission_published"
+  | "application_applied"
+  | "application_selected"
+  | "application_not_selected"
+  | "application_removed";
 
 /** Maps each kind to the per-user opt-out column on NotificationPreference. */
 export const PREFERENCE_FIELD = {
@@ -20,6 +24,10 @@ export const PREFERENCE_FIELD = {
   submission_approved: "submissionApproved",
   submission_declined: "submissionDeclined",
   submission_published: "submissionPublished",
+  application_applied: "applicationApplied",
+  application_selected: "applicationSelected",
+  application_not_selected: "applicationNotSelected",
+  application_removed: "applicationRemoved",
 } as const satisfies Record<NotificationKind, string>;
 
 interface NotifyInput {
@@ -40,6 +48,9 @@ const COLORS = {
   approved: 0x22c55e, // green
   declined: 0xef4444, // red
   published: 0x8b5cf6, // violet
+  application: 0x3b82f6, // blue
+  selected: 0x22c55e, // green
+  removed: 0xef4444, // red
 } as const;
 
 /**
@@ -202,6 +213,54 @@ export class Notifier {
       color: COLORS.published,
       title: `🚀 Published — ${versionLabel}`,
       message: `**${versionLabel}** for **${this.storeLabel(store)}** is now live in the game. 🎉`,
+    });
+  }
+
+  /** Confirm that a member's one-time election application was recorded. */
+  async applicationApplied(store: Store, application: StoreApplication): Promise<void> {
+    await this.send({
+      discordId: application.applicantDiscordId,
+      kind: "application_applied",
+      storeCode: store.code,
+      color: COLORS.application,
+      title: `🗳️ Application received — ${store.code}`,
+      message: `Your application to manage **${this.storeLabel(store)}** was received. You can vote in every store election while applications are open.`,
+    });
+  }
+
+  /** Tell the winning candidate that the store is now assigned to them. */
+  async applicationSelected(store: Store, application: StoreApplication): Promise<void> {
+    await this.send({
+      discordId: application.applicantDiscordId,
+      kind: "application_selected",
+      storeCode: store.code,
+      color: COLORS.selected,
+      title: `✅ Selected — ${store.code}`,
+      message: `You were selected to manage **${this.storeLabel(store)}**. The store is now assigned to you in the portal.`,
+    });
+  }
+
+  /** Tell a candidate they were not selected for this store. */
+  async applicationNotSelected(store: Store, application: StoreApplication): Promise<void> {
+    await this.send({
+      discordId: application.applicantDiscordId,
+      kind: "application_not_selected",
+      storeCode: store.code,
+      color: COLORS.removed,
+      title: `Not selected — ${store.code}`,
+      message: `You were not selected to manage **${this.storeLabel(store)}**. You can still vote in store elections.`,
+    });
+  }
+
+  /** Tell a candidate that a game owner removed their application. */
+  async applicationRemoved(store: Store, application: StoreApplication): Promise<void> {
+    await this.send({
+      discordId: application.applicantDiscordId,
+      kind: "application_removed",
+      storeCode: store.code,
+      color: COLORS.removed,
+      title: `Removed from election — ${store.code}`,
+      message: `Your application for **${this.storeLabel(store)}** was removed from the election. You can still vote in store elections.`,
     });
   }
 }

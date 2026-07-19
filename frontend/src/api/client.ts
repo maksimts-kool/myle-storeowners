@@ -6,9 +6,11 @@ const apiBaseUrl = `${appBasePath}/api`;
 
 export const http = axios.create({ baseURL: apiBaseUrl, withCredentials: true });
 
-export type Role = "admin" | "owner" | "none";
-export type StoreStatus = "OPEN" | "CLOSED";
+export type Role = "game_owner" | "store_owner" | "member";
+export type DebugRole = "GAME_OWNER" | "STORE_OWNER" | "MEMBER";
+export type StoreStatus = "OPEN" | "CLOSED" | "ELECTION";
 export type VersionStatus = "PENDING" | "APPROVED" | "DECLINED" | "PUBLISHED" | "SUPERSEDED";
+export type ApplicationStatus = "APPLIED" | "SELECTED" | "NOT_SELECTED" | "REMOVED" | "CANCELLED";
 
 export interface AuthUser {
   discordId: string;
@@ -23,6 +25,9 @@ export interface MeResponse {
   user?: AuthUser;
   role?: Role;
   storeCodes?: string[];
+  /** Only true for a real configured game owner, even during a lower-role preview. */
+  canDebug?: boolean;
+  debugMode?: { role: Role; storeCode?: string } | null;
 }
 
 export interface CurrentVersion {
@@ -54,6 +59,8 @@ export interface StoreSummary {
   hasTemplate: boolean;
   isOwner: boolean;
   canManage: boolean;
+  canDownloadCurrent: boolean;
+  canViewRestrictedFiles: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -121,6 +128,53 @@ export interface NotificationPrefs {
   submissionApproved: boolean;
   submissionDeclined: boolean;
   submissionPublished: boolean;
+  applicationApplied: boolean;
+  applicationSelected: boolean;
+  applicationNotSelected: boolean;
+  applicationRemoved: boolean;
+}
+
+export interface ElectionCandidate {
+  id: string;
+  displayName: string;
+  robloxName: string | null;
+  isCurrentUser: boolean;
+  voteCount?: number;
+}
+
+export interface ElectionStore {
+  code: string;
+  displayName: string;
+  floor: number;
+  candidates: ElectionCandidate[];
+  myVoteApplicationId: string | null;
+}
+
+export interface MyApplication {
+  id: string;
+  storeCode: string;
+  storeName: string;
+  status: ApplicationStatus;
+  createdAt: string;
+}
+
+export interface ElectionsResponse {
+  elections: ElectionStore[];
+  myApplication: MyApplication | null;
+  canApply: boolean;
+}
+
+export interface AdminApplication {
+  id: string;
+  storeCode: string;
+  storeName: string;
+  storeStatus: StoreStatus;
+  applicantDiscordId: string;
+  applicantDisplayName: string;
+  applicantRobloxName: string | null;
+  status: ApplicationStatus;
+  voteCount: number;
+  createdAt: string;
 }
 
 // --- Auth ---
@@ -171,6 +225,24 @@ export function uploadTemplate(code: string | null, file: File): Promise<void> {
   return http.post(url, form).then(() => undefined);
 }
 export const deleteTemplate = (id: string) => http.delete(`/admin/templates/${id}`).then((r) => r.data);
+
+// --- Elections ---
+export const getElections = () => http.get<ElectionsResponse>("/applications/elections").then((r) => r.data);
+export const applyForElection = (code: string) =>
+  http.post<{ application: MyApplication }>(`/applications/elections/${code}/apply`).then((r) => r.data.application);
+export const cancelMyApplication = () => http.delete("/applications/mine").then((r) => r.data);
+export const voteForApplication = (id: string) => http.post(`/applications/${id}/vote`).then((r) => r.data);
+export const undoElectionVote = (code: string) => http.delete(`/applications/elections/${code}/vote`).then((r) => r.data);
+
+export const getAdminApplications = () =>
+  http.get<{ applications: AdminApplication[] }>("/admin/applications").then((r) => r.data.applications);
+export const resolveApplication = (id: string, action: "select" | "not-selected" | "remove") =>
+  http.post(`/admin/applications/${id}/${action}`).then((r) => r.data);
+
+// --- Admin-only role preview ---
+export const setDebugRole = (input: { role: DebugRole; storeCode?: string }) =>
+  http.post("/admin/debug-role", input).then((r) => r.data);
+export const clearDebugRole = () => http.delete("/admin/debug-role").then((r) => r.data);
 
 // --- Settings ---
 export const getNotificationPrefs = () =>

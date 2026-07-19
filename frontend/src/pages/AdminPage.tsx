@@ -6,13 +6,14 @@ import {
 import { modals } from "@mantine/modals";
 import {
   IconCheck, IconDownload, IconEdit, IconInbox, IconPlus, IconRocket, IconTrash, IconX,
+  IconUserCheck, IconUserMinus,
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
-  getPending, getStores, versionDownloadUrl, type PendingItem, type StoreSummary,
+  getAdminApplications, getPending, getStores, versionDownloadUrl, type AdminApplication, type PendingItem, type StoreSummary,
 } from "../api/client";
-import { useDeleteStore, useReview } from "../api/mutations";
+import { useDeleteStore, useResolveApplication, useReview } from "../api/mutations";
 import { StoreFormModal } from "../components/StoreFormModal";
 import { floorLabel, formatBytes, formatDate, storeStatusColor, versionColor, versionIdentifier } from "../utils/format";
 
@@ -102,6 +103,88 @@ function PendingQueue() {
   );
 }
 
+const APPLICATION_LABEL: Record<AdminApplication["status"], string> = {
+  APPLIED: "Active",
+  SELECTED: "Selected",
+  NOT_SELECTED: "Not selected",
+  REMOVED: "Removed",
+  CANCELLED: "Cancelled",
+};
+
+const APPLICATION_COLOR: Record<AdminApplication["status"], string> = {
+  APPLIED: "blue",
+  SELECTED: "teal",
+  NOT_SELECTED: "gray",
+  REMOVED: "red",
+  CANCELLED: "gray",
+};
+
+function ApplicationsQueue() {
+  const { data: applications, isLoading } = useQuery({ queryKey: ["adminApplications"], queryFn: getAdminApplications });
+  const resolve = useResolveApplication();
+
+  function confirmSelect(application: AdminApplication) {
+    modals.openConfirmModal({
+      title: `Select ${application.applicantRobloxName || application.applicantDisplayName}?`,
+      children: <Text size="sm">This assigns {application.storeCode} to this applicant, opens the store, and marks all other active candidates for this store as not selected.</Text>,
+      labels: { confirm: "Select owner", cancel: "Cancel" },
+      confirmProps: { color: "teal" },
+      onConfirm: () => resolve.mutate({ id: application.id, action: "select" }),
+    });
+  }
+
+  if (isLoading) return <Center py="md"><Loader color="grape" size="sm" /></Center>;
+  if (!applications) return <Alert color="red">Could not load applications.</Alert>;
+  if (applications.length === 0) return <Text c="dimmed" size="sm">No store applications have been submitted yet.</Text>;
+
+  return (
+    <Table.ScrollContainer minWidth={760}>
+      <Table verticalSpacing="sm" highlightOnHover>
+        <Table.Thead>
+          <Table.Tr>
+            <Table.Th>Store</Table.Th>
+            <Table.Th>Applicant</Table.Th>
+            <Table.Th>Votes</Table.Th>
+            <Table.Th>Status</Table.Th>
+            <Table.Th>Applied</Table.Th>
+            <Table.Th ta="right">Manage</Table.Th>
+          </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>
+          {applications.map((application) => {
+            const active = application.status === "APPLIED" && application.storeStatus === "ELECTION";
+            const canRemove = application.status !== "SELECTED";
+            return (
+              <Table.Tr key={application.id}>
+                <Table.Td>
+                  <Anchor component={Link} to={`/stores/${application.storeCode}`} fw={700}>{application.storeCode}</Anchor>
+                  <Text size="xs" c="dimmed">{application.storeName}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm" fw={600}>{application.applicantRobloxName || application.applicantDisplayName}</Text>
+                  {application.applicantRobloxName && <Text size="xs" c="dimmed">Discord: {application.applicantDisplayName}</Text>}
+                </Table.Td>
+                <Table.Td><Badge color="grape" variant="light">{application.voteCount}</Badge></Table.Td>
+                <Table.Td><Badge color={APPLICATION_COLOR[application.status]} variant="light">{APPLICATION_LABEL[application.status]}</Badge></Table.Td>
+                <Table.Td><Text size="sm">{formatDate(application.createdAt)}</Text></Table.Td>
+                <Table.Td>
+                  {(active || canRemove) && (
+                    <Group gap={6} justify="flex-end" wrap="nowrap">
+                      {active && <Tooltip label="Select as owner"><ActionIcon color="teal" variant="light" loading={resolve.isPending && resolve.variables?.id === application.id} onClick={() => confirmSelect(application)}><IconUserCheck size={18} /></ActionIcon></Tooltip>}
+                      {active && <Tooltip label="Mark not selected"><ActionIcon color="gray" variant="light" disabled={resolve.isPending} onClick={() => resolve.mutate({ id: application.id, action: "not-selected" })}><IconUserMinus size={18} /></ActionIcon></Tooltip>}
+                      {canRemove && <Tooltip label="Delete application from database"><ActionIcon color="red" variant="light" disabled={resolve.isPending} onClick={() => resolve.mutate({ id: application.id, action: "remove" })}><IconX size={18} /></ActionIcon></Tooltip>}
+                    </Group>
+                  )}
+                </Table.Td>
+              </Table.Tr>
+            );
+          })}
+        </Table.Tbody>
+      </Table>
+    </Table.ScrollContainer>
+  );
+}
+
 function StoresTable({ onEdit }: { onEdit: (store: StoreSummary) => void }) {
   const { data: stores, isLoading } = useQuery({ queryKey: ["stores"], queryFn: getStores });
   const del = useDeleteStore();
@@ -188,6 +271,17 @@ export function AdminPage() {
             <Text fw={700} fz="lg">Review queue</Text>
           </Group>
           <PendingQueue />
+        </Card>
+
+        <Card withBorder radius="lg" padding="lg">
+          <Group gap="sm" mb="md">
+            <IconUserCheck size={22} />
+            <div>
+              <Text fw={700} fz="lg">Store applications</Text>
+              <Text size="sm" c="dimmed">Select an owner, mark a candidate not selected, or delete an application from the database.</Text>
+            </div>
+          </Group>
+          <ApplicationsQueue />
         </Card>
 
         <Card withBorder radius="lg" padding="lg">
