@@ -42,9 +42,7 @@ export function SettingsPage({ me }: { me: MeResponse }) {
             <IconBell size={20} />
             <Text fw={700} fz="lg">Discord notifications</Text>
           </Group>
-          <Text size="sm" c="dimmed" mb="md">
-            These are the direct messages the bot sends to your Discord account. Turn off any you don't want.
-          </Text>
+          <Text size="sm" c="dimmed" mb="md">Turn off any messages you don't want.</Text>
 
           {isLoading && <Center py="md"><Loader color="grape" size="sm" /></Center>}
           {isError && <Alert color="red">Could not load your notification settings. Please refresh.</Alert>}

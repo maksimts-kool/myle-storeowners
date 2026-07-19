@@ -17,8 +17,8 @@ export function StoresPage({ me }: { me: MeResponse }) {
           </Title>
           <Text c="dimmed">
             {me.role === "admin"
-              ? "Every store in the mall. Open one to review and manage its files."
-              : "Open a store to upload a new file, download templates, and see its status."}
+              ? "Every store in the mall."
+              : "Open a store to upload files and see its status."}
           </Text>
         </div>
 
@@ -30,9 +30,7 @@ export function StoresPage({ me }: { me: MeResponse }) {
         {stores && stores.length === 0 && (
           <Alert color="grape" icon={<IconMoodEmpty size={20} />} radius="lg">
             <Text fw={600}>No stores assigned to you yet</Text>
-            <Text size="sm">
-              Your Discord account isn't linked to a store. Ask the game owner to assign your store to you.
-            </Text>
+            <Text size="sm">Ask the game owner to assign your store to you.</Text>
           </Alert>
         )}
 

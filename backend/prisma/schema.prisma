@@ -28,6 +28,7 @@ model Store {
   ownerDisplayName String?
   storeIdentifier  String? // e.g. "A3.001.240325" from the in-game sign
   startingVersion  Int            @default(0) // last version represented by storeIdentifier; new uploads start after it
+  room             Json? // room layout in studs: { width, depth, height, entrance, windows[] } — see services/room.ts
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
   versions         StoreVersion[]

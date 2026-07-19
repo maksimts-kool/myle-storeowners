@@ -1,6 +1,7 @@
 import type { Store, StoreVersion, TemplateFile } from "@prisma/client";
 import type { prisma as database } from "../db.js";
 import type { SessionUser } from "../types.js";
+import { parseRoom, type RoomSpec } from "./room.js";
 
 type Db = typeof database;
 
@@ -36,6 +37,7 @@ export interface StoreSummaryDto {
   ownerDiscordId: string | null;
   ownerDisplayName: string | null;
   storeIdentifier: string | null;
+  room: RoomSpec | null;
   statusLabel: string;
   currentVersion: { versionNumber: number; fileName: string; fileSize: number; createdAt: string } | null;
   latestSubmission: { id: string; versionNumber: number; status: StoreVersion["status"]; createdAt: string } | null;
@@ -136,6 +138,7 @@ export function toStoreSummary(store: StoreWithFiles, user: SessionUser, isAdmin
     ownerDiscordId: store.ownerDiscordId,
     ownerDisplayName: store.ownerDisplayName,
     storeIdentifier: store.storeIdentifier,
+    room: parseRoom(store.room),
     statusLabel: deriveStatusLabel(store),
     currentVersion: current
       ? {

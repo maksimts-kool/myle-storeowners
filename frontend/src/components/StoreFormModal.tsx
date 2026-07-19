@@ -3,6 +3,8 @@ import { Button, Group, Modal, SegmentedControl, Select, Stack, Text, TextInput 
 import { useQuery } from "@tanstack/react-query";
 import { getVerifiedMembers, type StoreStatus, type StoreSummary } from "../api/client";
 import { useCreateStore, useUpdateStore } from "../api/mutations";
+import { RoomLayoutFields } from "./RoomLayoutFields";
+import { validateRoom, type RoomSpec } from "../utils/room";
 
 interface FormState {
   code: string;
@@ -10,6 +12,7 @@ interface FormState {
   ownerDiscordId: string;
   initialVersion: string;
   creationDate: string;
+  room: RoomSpec | null;
 }
 
 function today(): string {
@@ -28,6 +31,7 @@ function initialState(store: StoreSummary | null): FormState {
     ownerDiscordId: store?.ownerDiscordId ?? "",
     initialVersion: "1",
     creationDate: today(),
+    room: store?.room ?? null,
   };
 }
 
@@ -81,6 +85,7 @@ export function StoreFormModal({
     const payload = {
       status: form.status,
       ownerDiscordId: form.ownerDiscordId || null,
+      room: form.room,
     };
     if (isEdit) {
       update.mutate({
@@ -97,10 +102,11 @@ export function StoreFormModal({
     }
   }
 
-  const canSubmit = (isEdit || (form.code.trim() && !codeError)) && !identifierVersionError && !creationDateError && !pending;
+  const roomValid = form.room === null || validateRoom(form.room).valid;
+  const canSubmit = (isEdit || (form.code.trim() && !codeError)) && !identifierVersionError && !creationDateError && roomValid && !pending;
 
   return (
-    <Modal opened={opened} onClose={onClose} title={isEdit ? `Edit ${store.code}` : "Create a new store"} centered>
+    <Modal opened={opened} onClose={onClose} title={isEdit ? `Edit ${store.code}` : "Create a new store"} centered size="lg">
       <Stack gap="sm">
         <TextInput
           label="Store code"
@@ -108,7 +114,7 @@ export function StoreFormModal({
           value={form.code}
           disabled={isEdit}
           error={codeError}
-          description="Floor and display name are set automatically from the code."
+          description="Floor and name are set from the code."
           onChange={(e) => set("code", e.currentTarget.value)}
         />
         <div>
@@ -127,7 +133,7 @@ export function StoreFormModal({
           searchable
           clearable
           nothingFoundMessage={verifiedMembers.isLoading ? "Loading verified members…" : "No verified members found"}
-          description="Only members verified with Bloxlink in the bot's Discord server can be assigned."
+          description="Only Bloxlink-verified members can be assigned."
           onChange={(value) => set("ownerDiscordId", value ?? "")}
         />
         {verifiedMembers.isError && <Text size="xs" c="red">Verified members could not be loaded. You can still remove the current assignment.</Text>}
@@ -140,7 +146,7 @@ export function StoreFormModal({
               max={999}
               value={form.initialVersion}
               error={identifierVersionError}
-              description="Used to create the initial identifier, for example 001. The next upload continues from the following version."
+              description="Starting version number, for example 1."
               onChange={(e) => set("initialVersion", e.currentTarget.value)}
             />
             <TextInput
@@ -148,12 +154,13 @@ export function StoreFormModal({
               type="date"
               value={form.creationDate}
               error={creationDateError}
-              description="Together with the code and version, this creates the store identifier automatically."
               onChange={(e) => set("creationDate", e.currentTarget.value)}
             />
             {preview && <Text size="xs" c="dimmed">Identifier to create: {preview}</Text>}
           </>
         )}
+
+        <RoomLayoutFields room={form.room} onChange={(room) => set("room", room)} />
 
         <Group justify="flex-end" mt="sm">
           <Button variant="default" onClick={onClose}>Cancel</Button>

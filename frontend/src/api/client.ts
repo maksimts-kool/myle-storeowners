@@ -1,4 +1,5 @@
 import axios from "axios";
+import type { RoomSpec } from "../utils/room";
 
 const appBasePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 const apiBaseUrl = `${appBasePath}/api`;
@@ -46,6 +47,7 @@ export interface StoreSummary {
   ownerDiscordId: string | null;
   ownerDisplayName: string | null;
   storeIdentifier: string | null;
+  room: RoomSpec | null;
   statusLabel: string;
   currentVersion: CurrentVersion | null;
   latestSubmission: LatestSubmission | null;
@@ -110,6 +112,7 @@ export interface StoreInput {
   ownerDiscordId?: string | null;
   initialVersion?: number;
   creationDate?: string;
+  room?: RoomSpec | null; // null clears a stored layout
 }
 
 export interface NotificationPrefs {

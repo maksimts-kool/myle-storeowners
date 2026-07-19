@@ -5,7 +5,7 @@ import {
 } from "@mantine/core";
 import {
   IconArrowLeft, IconBox, IconCheck, IconClock, IconDownload, IconFileDownload, IconMapPin,
-  IconRocket, IconTemplate, IconTrash, IconUpload, IconX,
+  IconRuler2, IconRocket, IconTemplate, IconTrash, IconUpload, IconX,
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
@@ -13,8 +13,10 @@ import {
   currentDownloadUrl, getStore, templateDownloadUrl, type TemplateDto, type VersionDto,
 } from "../api/client";
 import { useDeleteTemplate, useUploadTemplate } from "../api/mutations";
+import { RoomDiagram, studs } from "../components/RoomDiagram";
 import { UploadCard } from "../components/UploadCard";
 import { VersionTable } from "../components/VersionTable";
+import { DOOR, ROOM_HEIGHT, floorArea, shapeLabel, WALL_LABELS, type RoomSpec } from "../utils/room";
 import { floorLabel, formatBytes, formatDate, storeStatusColor, versionIdentifier } from "../utils/format";
 
 const ACCEPTED = [".rbxl", ".rbxlx"];
@@ -62,7 +64,7 @@ function TemplateCard({ code, templates, canManage }: { code: string; templates:
           </FileButton>
         )}
       </Group>
-      <Text size="sm" c="dimmed" mb="sm">Use a template to rebuild your store from a known-good starting point.</Text>
+      <Text size="sm" c="dimmed" mb="sm">A starting point for building your store.</Text>
       {templates.length === 0 ? (
         <Text c="dimmed" size="sm">No template available yet.</Text>
       ) : (
@@ -90,6 +92,37 @@ function TemplateCard({ code, templates, canManage }: { code: string; templates:
           ))}
         </Stack>
       )}
+    </Card>
+  );
+}
+
+/** The physical unit the owner is building into, so their .rbxl fits the space. */
+function RoomCard({ room }: { room: RoomSpec }) {
+  const facts = [
+    ["Floor", `${shapeLabel(room)} · ${studs(room.width)} × ${studs(room.depth)} studs · ${floorArea(room).toLocaleString()} studs²`],
+    ["Wall height", `${studs(ROOM_HEIGHT)} studs`],
+    ["Doorway", `${WALL_LABELS[DOOR.wall]} wall · ${studs(DOOR.width)} × ${studs(DOOR.height)} studs, ${studs(room.doorOffset)} from the corner`],
+    ["Windows", room.windows.length === 0 ? "None" : `${room.windows.length} on the ${[...new Set(room.windows.map((w) => WALL_LABELS[w.wall].toLowerCase()))].join(", ")} wall${room.windows.length === 1 ? "" : "s"}`],
+  ] as const;
+
+  return (
+    <Card withBorder radius="lg" padding="lg">
+      <Group gap="sm" mb="sm">
+        <ThemeIcon size={38} radius="md" variant="light" color="grape"><IconRuler2 size={22} /></ThemeIcon>
+        <div>
+          <Text fw={700} fz="lg">Your unit</Text>
+          <Text size="xs" c="dimmed">All measurements are in studs.</Text>
+        </div>
+      </Group>
+      <RoomDiagram room={room} height={340} />
+      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs" mt="md">
+        {facts.map(([label, value]) => (
+          <Group key={label} gap={6} wrap="nowrap">
+            <Text size="sm" c="dimmed" style={{ whiteSpace: "nowrap" }}>{label}:</Text>
+            <Text size="sm" fw={600}>{value}</Text>
+          </Group>
+        ))}
+      </SimpleGrid>
     </Card>
   );
 }
@@ -226,6 +259,8 @@ export function StoreDetailPage() {
         </Card>
 
         {inFlight && <SubmissionProgress code={store.code} version={inFlight} />}
+
+        {store.room && <RoomCard room={store.room} />}
 
         <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="lg">
           <CurrentFileCard code={store.code} current={store.currentVersion} />

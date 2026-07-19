@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import type { Store, StoreVersion } from "@prisma/client";
 import type { RouteDeps } from "../deps.js";
 import { badRequest, conflict, notFound } from "../lib/errors.js";
@@ -10,6 +11,7 @@ import {
   saveMultipartFile,
   templateFilePath,
 } from "../services/file-storage.js";
+import { roomSchema } from "../services/room.js";
 import { floorForCode, loadStore, toStoreDetail, toTemplateDto } from "../services/store-service.js";
 
 const discordId = z
@@ -38,6 +40,14 @@ function storeIdentifierForPublishedVersion(store: Store, versionNumber: number)
   return `${store.code}.${String(versionNumber).padStart(3, "0")}.${fallbackDate}`;
 }
 
+// `null` clears a stored room layout; omitting the field leaves it untouched.
+const roomInput = roomSchema.nullable();
+
+/** Prisma needs DbNull (not null) to clear a nullable Json column. */
+function roomValue(room: z.infer<typeof roomInput>): Prisma.InputJsonValue | typeof Prisma.DbNull {
+  return room === null ? Prisma.DbNull : (room as Prisma.InputJsonValue);
+}
+
 // Floor and display name are derived automatically (from the code). The initial
 // identifier is generated from the store code, version and creation date.
 const createStoreSchema = z.object({
@@ -48,6 +58,7 @@ const createStoreSchema = z.object({
   ownerDiscordId: discordId.optional(),
   initialVersion: z.coerce.number().int().min(1).max(999, "Version must be between 1 and 999"),
   creationDate,
+  room: roomInput.optional(),
 });
 
 const updateStoreSchema = z.object({
@@ -57,6 +68,7 @@ const updateStoreSchema = z.object({
   ownerDiscordId: discordId.optional(),
   initialVersion: z.coerce.number().int().min(1).max(999, "Version must be between 1 and 999").optional(),
   creationDate: creationDate.optional(),
+  room: roomInput.optional(),
 }).superRefine((input, context) => {
   if ((input.initialVersion === undefined) !== (input.creationDate === undefined)) {
     context.addIssue({
@@ -129,6 +141,7 @@ export function registerAdminRoutes(app: FastifyInstance, deps: RouteDeps): void
         ownerDisplayName: owner?.robloxUsername ?? owner?.discordName ?? null,
         storeIdentifier: storeIdentifier(input.code, input.initialVersion, input.creationDate),
         startingVersion: input.initialVersion,
+        room: roomValue(input.room ?? null),
       },
     });
     const store = await loadStore(db, input.code);
@@ -167,6 +180,7 @@ export function registerAdminRoutes(app: FastifyInstance, deps: RouteDeps): void
         ...(input.status !== undefined ? { status: input.status } : {}),
         ...(input.ownerDiscordId !== undefined ? { ownerDiscordId: input.ownerDiscordId } : {}),
         ...(ownerDisplayName !== undefined ? { ownerDisplayName } : {}),
+        ...(input.room !== undefined ? { room: roomValue(input.room) } : {}),
         ...(isCreatingIdentifier
           ? {
               storeIdentifier: storeIdentifier(store.code, input.initialVersion!, input.creationDate!),

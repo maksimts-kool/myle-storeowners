@@ -25,8 +25,7 @@ export function LandingPage() {
               <Text c="dimmed" ta="center">Store Owners Portal</Text>
             </Stack>
             <Text ta="center" size="sm" c="dimmed">
-              Manage your store: upload new versions, download your current and template files,
-              and track when your store goes live in the game.
+              Upload new versions, download your files, and track your store.
             </Text>
 
             {error && (
