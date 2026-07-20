@@ -80,14 +80,13 @@ export function StoreFormModal({
       label: store?.ownerDisplayName ? `${store.ownerDisplayName} · no longer verified` : "Current assignment · no longer verified",
     });
   }
-  const isElection = form.status === "ELECTION";
+  // Election is not a status an admin sets by hand — a scheduled round owns it.
+  const inElection = store?.status === "ELECTION";
 
   function submit() {
-    const payload = {
-      status: form.status,
-      ownerDiscordId: form.ownerDiscordId || null,
-      room: form.room,
-    };
+    const payload = inElection
+      ? { room: form.room }
+      : { status: form.status, ownerDiscordId: form.ownerDiscordId || null, room: form.room };
     if (isEdit) {
       update.mutate({
         code: store.code,
@@ -121,28 +120,29 @@ export function StoreFormModal({
         <div>
           <SegmentedControl
             fullWidth
-            value={form.status}
-            onChange={(v) => {
-              set("status", v as StoreStatus);
-              if (v === "ELECTION") set("ownerDiscordId", "");
-            }}
-            data={[
-              { label: "Open", value: "OPEN" },
-              { label: "Election", value: "ELECTION" },
-              { label: "Closed", value: "CLOSED" },
-            ]}
+            value={inElection ? "ELECTION" : form.status}
+            disabled={inElection}
+            onChange={(v) => set("status", v as StoreStatus)}
+            data={inElection
+              ? [{ label: "In an election", value: "ELECTION" }]
+              : [{ label: "Open", value: "OPEN" }, { label: "Closed", value: "CLOSED" }]}
           />
+          {inElection && (
+            <Text size="xs" c="dimmed" mt={6}>
+              This store is being contested. Close or cancel its election to change the status or owner.
+            </Text>
+          )}
         </div>
         <Select
           label="Store owner"
           placeholder={verifiedMembers.isLoading ? "Loading verified members…" : "Choose a verified member"}
-          value={isElection ? null : form.ownerDiscordId || null}
+          value={inElection ? null : form.ownerDiscordId || null}
           data={ownerOptions}
           searchable
           clearable
-          disabled={isElection}
+          disabled={inElection}
           nothingFoundMessage={verifiedMembers.isLoading ? "Loading verified members…" : "No verified members found"}
-          description={isElection ? "Election stores have no owner until a candidate is selected." : "Only Bloxlink-verified members can be assigned."}
+          description={inElection ? "The winner of the election becomes the owner." : "Only Bloxlink-verified members can be assigned."}
           onChange={(value) => set("ownerDiscordId", value ?? "")}
         />
         {verifiedMembers.isError && <Text size="xs" c="red">Verified members could not be loaded. You can still remove the current assignment.</Text>}

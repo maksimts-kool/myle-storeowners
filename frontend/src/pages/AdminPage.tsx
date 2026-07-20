@@ -14,6 +14,7 @@ import {
   getAdminApplications, getPending, getStores, versionDownloadUrl, type AdminApplication, type PendingItem, type StoreSummary,
 } from "../api/client";
 import { useDeleteStore, useResolveApplication, useReview } from "../api/mutations";
+import { ElectionsPanel } from "../components/ElectionsPanel";
 import { StoreFormModal } from "../components/StoreFormModal";
 import { floorLabel, formatBytes, formatDate, storeStatusColor, versionColor, versionIdentifier } from "../utils/format";
 
@@ -143,6 +144,7 @@ function ApplicationsQueue() {
         <Table.Thead>
           <Table.Tr>
             <Table.Th>Store</Table.Th>
+            <Table.Th>Election</Table.Th>
             <Table.Th>Applicant</Table.Th>
             <Table.Th>Votes</Table.Th>
             <Table.Th>Status</Table.Th>
@@ -152,7 +154,11 @@ function ApplicationsQueue() {
         </Table.Thead>
         <Table.Tbody>
           {applications.map((application) => {
-            const active = application.status === "APPLIED" && application.storeStatus === "ELECTION";
+            // Legacy rows (no election) fall back to the store's own status.
+            const electionLive = application.electionStatus
+              ? ["RUNNING", "TALLYING"].includes(application.electionStatus)
+              : application.storeStatus === "ELECTION";
+            const active = application.status === "APPLIED" && electionLive;
             const canRemove = application.status !== "SELECTED";
             return (
               <Table.Tr key={application.id}>
@@ -160,6 +166,7 @@ function ApplicationsQueue() {
                   <Anchor component={Link} to={`/stores/${application.storeCode}`} fw={700}>{application.storeCode}</Anchor>
                   <Text size="xs" c="dimmed">{application.storeName}</Text>
                 </Table.Td>
+                <Table.Td><Text size="sm" c={application.electionTitle ? undefined : "dimmed"}>{application.electionTitle ?? "—"}</Text></Table.Td>
                 <Table.Td>
                   <Text size="sm" fw={600}>{application.applicantRobloxName || application.applicantDisplayName}</Text>
                   {application.applicantRobloxName && <Text size="xs" c="dimmed">Discord: {application.applicantDisplayName}</Text>}
@@ -273,12 +280,14 @@ export function AdminPage() {
           <PendingQueue />
         </Card>
 
+        <ElectionsPanel />
+
         <Card withBorder radius="lg" padding="lg">
           <Group gap="sm" mb="md">
             <IconUserCheck size={22} />
             <div>
               <Text fw={700} fz="lg">Store applications</Text>
-              <Text size="sm" c="dimmed">Select an owner, mark a candidate not selected, or delete an application from the database.</Text>
+              <Text size="sm" c="dimmed">Every application across all rounds. Winners are normally confirmed from the election above.</Text>
             </div>
           </Group>
           <ApplicationsQueue />

@@ -1,4 +1,4 @@
-import type { StoreStatus, VersionStatus } from "../api/client";
+import type { ElectionPhase, StoreStatus, VersionStatus } from "../api/client";
 
 export function formatBytes(bytes: number): string {
   if (bytes <= 0) return "0 B";
@@ -45,6 +45,43 @@ export function storeStatusColor(status: StoreStatus, statusLabel: string): stri
   if (statusLabel.startsWith("Waiting")) return "yellow";
   if (statusLabel.includes("declined")) return "red";
   return "blue";
+}
+
+const PHASE_LABELS: Record<ElectionPhase, string> = {
+  draft: "Draft",
+  upcoming: "Starts soon",
+  applications: "Applications open",
+  review: "Applications closed",
+  voting: "Voting open",
+  tallying: "Results ready",
+  closed: "Finished",
+  cancelled: "Cancelled",
+};
+
+const PHASE_COLORS: Record<ElectionPhase, string> = {
+  draft: "gray",
+  upcoming: "blue",
+  applications: "grape",
+  review: "yellow",
+  voting: "teal",
+  tallying: "orange",
+  closed: "gray",
+  cancelled: "red",
+};
+
+export const phaseLabel = (phase: ElectionPhase) => PHASE_LABELS[phase];
+export const phaseColor = (phase: ElectionPhase) => PHASE_COLORS[phase];
+
+/** Coarse "2d 4h left" style countdown; precise enough at a one-minute refresh. */
+export function timeLeft(iso: string, now: number = Date.now()): string {
+  const ms = new Date(iso).getTime() - now;
+  if (ms <= 0) return "any moment";
+  const minutes = Math.floor(ms / 60000);
+  const days = Math.floor(minutes / 1440);
+  const hours = Math.floor((minutes % 1440) / 60);
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes % 60}m`;
+  return `${minutes}m`;
 }
 
 export const floorLabel = (floor: number) => (floor === 1 ? "1st floor" : floor === 2 ? "2nd floor" : `Floor ${floor}`);

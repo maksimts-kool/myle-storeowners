@@ -13,6 +13,8 @@ import { registerStoreRoutes } from "./routes/stores.js";
 import { registerAdminRoutes } from "./routes/admin.js";
 import { registerSettingsRoutes } from "./routes/settings.js";
 import { registerAdminApplicationRoutes, registerApplicationRoutes } from "./routes/applications.js";
+import { registerAdminElectionRoutes } from "./routes/elections.js";
+import { adoptLegacyElection, startElectionScheduler } from "./services/election-service.js";
 import { registerDebugRoutes } from "./routes/debug.js";
 
 function errorType(error: unknown): string {
@@ -54,7 +56,15 @@ export async function buildServer(config: Config, prisma: typeof database): Prom
   registerAdminRoutes(app, deps);
   registerApplicationRoutes(app, deps);
   registerAdminApplicationRoutes(app, deps);
+  registerAdminElectionRoutes(app, deps);
   registerSettingsRoutes(app, deps);
+
+  // Elections move across their own windows without an admin touching them.
+  await adoptLegacyElection(prisma, app.log).catch((error: unknown) => {
+    app.log.error({ operation: "election_adopt", error }, "Could not adopt legacy election stores");
+  });
+  const stopScheduler = startElectionScheduler(prisma, app.log);
+  app.addHook("onClose", async () => stopScheduler());
 
   app.setErrorHandler((error: unknown, request, reply) => {
     if (error instanceof HttpError) {

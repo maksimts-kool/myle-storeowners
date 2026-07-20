@@ -134,34 +134,111 @@ export interface NotificationPrefs {
   applicationRemoved: boolean;
 }
 
+export type ElectionStatus = "DRAFT" | "SCHEDULED" | "RUNNING" | "TALLYING" | "CLOSED" | "CANCELLED";
+/** What members can do right now, derived from the round's windows. */
+export type ElectionPhase =
+  | "draft" | "upcoming" | "applications" | "review" | "voting" | "tallying" | "closed" | "cancelled";
+
 export interface ElectionCandidate {
   id: string;
   displayName: string;
   robloxName: string | null;
   isCurrentUser: boolean;
-  voteCount?: number;
+  voteCount: number;
 }
 
 export interface ElectionStore {
   code: string;
   displayName: string;
   floor: number;
+  winnerApplicationId: string | null;
   candidates: ElectionCandidate[];
   myVoteApplicationId: string | null;
 }
 
 export interface MyApplication {
   id: string;
+  electionId: string | null;
   storeCode: string;
   storeName: string;
   status: ApplicationStatus;
   createdAt: string;
 }
 
-export interface ElectionsResponse {
-  elections: ElectionStore[];
-  myApplication: MyApplication | null;
+export interface MemberElection {
+  id: string;
+  title: string;
+  note: string | null;
+  status: ElectionStatus;
+  phase: ElectionPhase;
+  applicationsOpenAt: string;
+  applicationsCloseAt: string;
+  votingOpensAt: string;
+  votingClosesAt: string;
+  nextDeadline: string | null;
   canApply: boolean;
+  canVote: boolean;
+  myApplication: MyApplication | null;
+  stores: ElectionStore[];
+}
+
+export interface ElectionsResponse {
+  elections: MemberElection[];
+}
+
+export interface ElectionResultCandidate {
+  applicationId: string;
+  discordId: string;
+  displayName: string;
+  robloxName: string | null;
+  voteCount: number;
+}
+
+export interface ElectionStoreResult {
+  storeCode: string;
+  storeName: string;
+  totalVotes: number;
+  candidates: ElectionResultCandidate[];
+  leaderApplicationId: string | null;
+  tied: boolean;
+  winnerApplicationId: string | null;
+}
+
+export interface AdminElection {
+  id: string;
+  title: string;
+  note: string | null;
+  status: ElectionStatus;
+  phase: ElectionPhase;
+  applicationsOpenAt: string;
+  applicationsCloseAt: string;
+  votingOpensAt: string;
+  votingClosesAt: string;
+  nextDeadline: string | null;
+  createdAt: string;
+  closedAt: string | null;
+  applicationCount: number;
+  voteCount: number;
+  stores: { code: string; displayName: string; floor: number; winnerApplicationId: string | null }[];
+  results: ElectionStoreResult[] | null;
+}
+
+export interface ElectionInput {
+  title: string;
+  note?: string;
+  storeCodes: string[];
+  applicationsOpenAt: string;
+  applicationsCloseAt: string;
+  votingOpensAt: string;
+  votingClosesAt: string;
+  publish?: boolean;
+}
+
+export interface AvailableStore {
+  code: string;
+  displayName: string;
+  floor: number;
+  status: StoreStatus;
 }
 
 export interface AdminApplication {
@@ -169,6 +246,9 @@ export interface AdminApplication {
   storeCode: string;
   storeName: string;
   storeStatus: StoreStatus;
+  electionId: string | null;
+  electionTitle: string | null;
+  electionStatus: ElectionStatus | null;
   applicantDiscordId: string;
   applicantDisplayName: string;
   applicantRobloxName: string | null;
@@ -230,9 +310,26 @@ export const deleteTemplate = (id: string) => http.delete(`/admin/templates/${id
 export const getElections = () => http.get<ElectionsResponse>("/applications/elections").then((r) => r.data);
 export const applyForElection = (code: string) =>
   http.post<{ application: MyApplication }>(`/applications/elections/${code}/apply`).then((r) => r.data.application);
-export const cancelMyApplication = () => http.delete("/applications/mine").then((r) => r.data);
+export const withdrawMyApplication = (id: string) => http.delete(`/applications/mine/${id}`).then((r) => r.data);
 export const voteForApplication = (id: string) => http.post(`/applications/${id}/vote`).then((r) => r.data);
 export const undoElectionVote = (code: string) => http.delete(`/applications/elections/${code}/vote`).then((r) => r.data);
+
+// --- Election rounds (game owner) ---
+export const getAdminElections = () =>
+  http.get<{ elections: AdminElection[] }>("/admin/elections").then((r) => r.data.elections);
+export const getAvailableElectionStores = () =>
+  http.get<{ stores: AvailableStore[] }>("/admin/elections/available-stores").then((r) => r.data.stores);
+export const createElection = (input: ElectionInput) =>
+  http.post<{ election: AdminElection }>("/admin/elections", input).then((r) => r.data.election);
+export const updateElection = (id: string, input: Partial<ElectionInput>) =>
+  http.patch<{ election: AdminElection }>(`/admin/elections/${id}`, input).then((r) => r.data.election);
+export const publishElection = (id: string) =>
+  http.post<{ election: AdminElection }>(`/admin/elections/${id}/publish`).then((r) => r.data.election);
+export const closeElection = (id: string) => http.post(`/admin/elections/${id}/close`).then((r) => r.data);
+export const cancelElection = (id: string) => http.post(`/admin/elections/${id}/cancel`).then((r) => r.data);
+export const deleteElection = (id: string) => http.delete(`/admin/elections/${id}`).then((r) => r.data);
+export const setElectionWinner = (id: string, storeCode: string, applicationId: string) =>
+  http.post(`/admin/elections/${id}/stores/${storeCode}/winner`, { applicationId }).then((r) => r.data);
 
 export const getAdminApplications = () =>
   http.get<{ applications: AdminApplication[] }>("/admin/applications").then((r) => r.data.applications);

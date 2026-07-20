@@ -28,6 +28,15 @@ enum ApplicationStatus {
   CANCELLED
 }
 
+enum ElectionStatus {
+  DRAFT // being prepared, invisible to members
+  SCHEDULED // published, waiting for applicationsOpenAt
+  RUNNING // inside the application and/or voting windows
+  TALLYING // voting closed, winners computed, waiting for a game owner
+  CLOSED // finished; owners assigned and store statuses restored
+  CANCELLED // called off; votes voided and store statuses restored
+}
+
 model Store {
   code             String         @id // e.g. "A1".."B6" or any admin-created code
   floor            Int // 1 for A*, 2 for B*
@@ -44,15 +53,60 @@ model Store {
   templates        TemplateFile[]
   applications     StoreApplication[]
   votes            ElectionVote[]
+  elections        ElectionStore[]
 
   @@index([ownerDiscordId])
 }
 
-/** A verified member's one-time request to manage an election store. */
+/**
+ * A scheduled election round. Everything members can do — applying and voting —
+ * is gated by this row's windows, and `status` is advanced by the scheduler in
+ * services/election-service.ts rather than by hand.
+ */
+model Election {
+  id                  String         @id @default(cuid())
+  title               String
+  status              ElectionStatus @default(DRAFT)
+  applicationsOpenAt  DateTime
+  applicationsCloseAt DateTime
+  votingOpensAt       DateTime
+  votingClosesAt      DateTime
+  createdByDiscordId  String
+  closedAt            DateTime?
+  closedByDiscordId   String?
+  note                String? // shown to members on the elections page
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  stores              ElectionStore[]
+  applications        StoreApplication[]
+  votes               ElectionVote[]
+
+  @@index([status, applicationsOpenAt])
+}
+
+/**
+ * A store contested in one election. `previousStatus` is what the store's
+ * status is restored to when the round closes without a winner or is cancelled.
+ */
+model ElectionStore {
+  electionId          String
+  election            Election    @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  storeCode           String
+  store               Store       @relation(fields: [storeCode], references: [code], onDelete: Cascade)
+  previousStatus      StoreStatus @default(OPEN)
+  winnerApplicationId String? // set when a game owner confirms the result
+
+  @@id([electionId, storeCode])
+  @@index([storeCode])
+}
+
+/** A verified member's request to manage one store within one election. */
 model StoreApplication {
   id                    String            @id @default(cuid())
   storeCode             String
   store                 Store             @relation(fields: [storeCode], references: [code], onDelete: Cascade)
+  electionId            String? // null only on rows that predate scheduled elections
+  election              Election?         @relation(fields: [electionId], references: [id], onDelete: Cascade)
   applicantDiscordId    String
   applicantDisplayName  String
   applicantRobloxName   String?
@@ -63,8 +117,10 @@ model StoreApplication {
   updatedAt             DateTime          @updatedAt
   votes                 ElectionVote[]
 
-  // One active/historical row per member while it exists.
-  @@unique([applicantDiscordId])
+  // One application per member per round — a member who loses one election may
+  // enter the next one.
+  @@unique([electionId, applicantDiscordId])
+  @@index([applicantDiscordId])
   @@index([storeCode, status, createdAt])
 }
 
@@ -75,17 +131,19 @@ model ElectionApplicationLock {
   lockedAt  DateTime @default(now())
 }
 
-/** A verified member gets one immutable vote for each election store. */
+/** A verified member gets one vote for each store in an election. */
 model ElectionVote {
-  id              String           @id @default(cuid())
-  storeCode       String
-  store           Store            @relation(fields: [storeCode], references: [code], onDelete: Cascade)
-  applicationId   String
-  application     StoreApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  voterDiscordId  String
-  createdAt       DateTime         @default(now())
+  id             String           @id @default(cuid())
+  storeCode      String
+  store          Store            @relation(fields: [storeCode], references: [code], onDelete: Cascade)
+  electionId     String? // null only on rows that predate scheduled elections
+  election       Election?        @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  applicationId  String
+  application    StoreApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  voterDiscordId String
+  createdAt      DateTime         @default(now())
 
-  @@unique([storeCode, voterDiscordId])
+  @@unique([electionId, storeCode, voterDiscordId])
   @@index([applicationId])
 }
 

@@ -10,13 +10,21 @@ import {
   updateStore,
   uploadTemplate,
   applyForElection,
-  cancelMyApplication,
+  withdrawMyApplication,
   resolveApplication,
   voteForApplication,
   undoElectionVote,
+  cancelElection,
+  closeElection,
+  createElection,
+  deleteElection,
+  publishElection,
+  setElectionWinner,
+  updateElection,
   clearDebugRole,
   setDebugRole,
   type DebugRole,
+  type ElectionInput,
   type NotificationPrefs,
   type StoreInput,
 } from "./client";
@@ -34,6 +42,8 @@ function useInvalidateElections() {
   const qc = useQueryClient();
   return async () => {
     await qc.invalidateQueries({ queryKey: ["elections"] });
+    await qc.invalidateQueries({ queryKey: ["adminElections"] });
+    await qc.invalidateQueries({ queryKey: ["availableElectionStores"] });
     await qc.invalidateQueries({ queryKey: ["adminApplications"] });
     await qc.invalidateQueries({ queryKey: ["stores"] });
     await qc.invalidateQueries({ queryKey: ["me"] });
@@ -52,15 +62,78 @@ export function useApplyForElection() {
   });
 }
 
-export function useCancelMyApplication() {
+export function useWithdrawMyApplication() {
   const invalidate = useInvalidateElections();
   return useMutation({
-    mutationFn: cancelMyApplication,
+    mutationFn: withdrawMyApplication,
     onSuccess: async () => {
-      notifications.show({ color: "orange", title: "Application cancelled", message: "You can still vote. A Game owner can delete the record if you need to apply again." });
+      notifications.show({ color: "orange", title: "Application withdrawn", message: "You can apply for another store while applications are open." });
       await invalidate();
     },
-    onError: () => notifications.show({ color: "red", title: "Could not cancel", message: "Only an active application can be cancelled." }),
+    onError: () => notifications.show({ color: "red", title: "Could not withdraw", message: "Applications for this election may already have closed." }),
+  });
+}
+
+export function useCreateElection() {
+  const invalidate = useInvalidateElections();
+  return useMutation({
+    mutationFn: (input: ElectionInput) => createElection(input),
+    onSuccess: async (election) => {
+      const message = election.status === "DRAFT"
+        ? "Saved as a draft. Publish it when you are ready."
+        : "Scheduled. It opens and closes on its own.";
+      notifications.show({ color: "teal", title: `Election “${election.title}” created`, message });
+      await invalidate();
+    },
+    onError: () => notifications.show({ color: "red", title: "Could not create election", message: "Check the dates and that each store is free." }),
+  });
+}
+
+export function useUpdateElection() {
+  const invalidate = useInvalidateElections();
+  return useMutation({
+    mutationFn: (v: { id: string; input: Partial<ElectionInput> }) => updateElection(v.id, v.input),
+    onSuccess: async () => {
+      notifications.show({ color: "teal", title: "Election updated", message: "The new schedule is live." });
+      await invalidate();
+    },
+    onError: () => notifications.show({ color: "red", title: "Could not save", message: "Check the dates and that each store is free." }),
+  });
+}
+
+const ELECTION_ACTION = {
+  publish: { title: "Election published", message: "Members can see it; it opens at the scheduled time." },
+  close: { title: "Election closed", message: "Stores without a winner went back to their previous status." },
+  cancel: { title: "Election cancelled", message: "Votes were voided and every store was restored." },
+  delete: { title: "Draft deleted", message: "The draft election was removed." },
+} as const;
+
+export function useElectionAction() {
+  const invalidate = useInvalidateElections();
+  return useMutation({
+    mutationFn: (v: { id: string; action: keyof typeof ELECTION_ACTION }) =>
+      v.action === "publish" ? publishElection(v.id)
+        : v.action === "close" ? closeElection(v.id)
+          : v.action === "cancel" ? cancelElection(v.id)
+            : deleteElection(v.id),
+    onSuccess: async (_data, v) => {
+      notifications.show({ color: v.action === "cancel" ? "orange" : "teal", ...ELECTION_ACTION[v.action] });
+      await invalidate();
+    },
+    onError: () => notifications.show({ color: "red", title: "Could not update election", message: "Refresh and try again." }),
+  });
+}
+
+export function useSetElectionWinner() {
+  const invalidate = useInvalidateElections();
+  return useMutation({
+    mutationFn: (v: { id: string; storeCode: string; applicationId: string }) =>
+      setElectionWinner(v.id, v.storeCode, v.applicationId),
+    onSuccess: async (_data, v) => {
+      notifications.show({ color: "teal", title: `${v.storeCode} assigned`, message: "The winner owns the store and every other candidate was notified." });
+      await invalidate();
+    },
+    onError: () => notifications.show({ color: "red", title: "Could not assign the store", message: "Refresh and try again." }),
   });
 }
 
