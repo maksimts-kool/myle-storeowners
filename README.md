@@ -129,7 +129,7 @@ Backend:
 cd backend
 npm install
 Copy-Item .env.example .env      # point DATABASE_URL at a local Postgres, fill Discord vars
-npm run db:push                  # create tables
+npm run db:migrate               # apply migrations (creates tables)
 npm run seed                     # seed the 8 initial stores
 npm run dev                      # http://localhost:3000
 ```
@@ -217,13 +217,32 @@ plus a call site. Delivery is best-effort — a failed DM is logged (see the
 | [`backend/src/routes/`](backend/src/routes/) | Auth, store/owner, and admin routes. |
 | [`backend/src/services/`](backend/src/services/) | File storage, store logic, notifier. |
 | [`backend/prisma/schema.prisma`](backend/prisma/schema.prisma) | Data model. |
+| [`backend/prisma/migrations/`](backend/prisma/migrations/) | Versioned schema changes, applied on deploy. |
 | [`frontend/src/pages/`](frontend/src/pages/) | Landing, Stores, Store detail, Admin. |
 | [`frontend/src/components/`](frontend/src/components/) | Cards, upload dropzone, tables, modals. |
 | [`compose.yml`](compose.yml) | The three-service stack. |
 
 ## Notes on schema management
 
-The backend uses `prisma db push` (not migration files) to sync the schema on
-startup — simple and reliable for this app's scale. If you later want versioned
-migrations, switch the Dockerfile's `db push` to `prisma migrate deploy` and add a
-`prisma/migrations` directory.
+The backend uses versioned migration files in
+[`backend/prisma/migrations/`](backend/prisma/migrations/). The API container runs
+`prisma migrate deploy` on startup, so a deploy applies exactly the SQL that was
+reviewed and committed — never a schema diff computed at boot.
+
+To change the data model:
+
+```powershell
+cd backend
+# edit prisma/schema.prisma, then:
+npm run db:migrate               # prompts for a name, writes prisma/migrations/<timestamp>_<name>/
+```
+
+Commit the generated `migration.sql` with the schema change. The next deploy
+applies it.
+
+A database created before migrations existed must be baselined once, so Prisma
+does not try to recreate tables that are already there:
+
+```powershell
+docker compose run --rm --no-deps api sh -c "npx prisma migrate resolve --applied 0_init"
+```

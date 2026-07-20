@@ -22,5 +22,5 @@ COPY prisma.config.ts ./
 RUN mkdir -p /data/store-files && chown -R node:node /data
 USER node
 EXPOSE 3000
-# Sync the schema, seed the initial stores (idempotent), then start the API.
-CMD ["sh", "-c", "npx prisma db push && node dist/prisma/seed.js && node dist/src/index.js"]
+# Apply pending migrations, seed the initial stores (idempotent), then start the API.
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/prisma/seed.js && node dist/src/index.js"]
